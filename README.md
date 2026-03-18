@@ -21,5 +21,7 @@
 - [ ] File transfer
 - [ ] TUI
 
-
+### Goals:
+- [ ] Finish basic client and server functionality by end of this week
+  - [ ] Fixed the reading caviat from buffers sending and receiving
 
