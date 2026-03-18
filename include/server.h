@@ -1,3 +1,5 @@
+//Server header file for a simple chat server application
+
 #define MAX_CLIENTS 100
 
 typedef struct {
@@ -5,6 +7,7 @@ typedef struct {
     char username[32];
     int current_channel_id;
     bool is_active;
+    bool is_authenticated;
 } ClientNode;
 
 typedef struct {
