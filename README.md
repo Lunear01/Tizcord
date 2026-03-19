@@ -23,5 +23,7 @@
 
 ### Goals:
 - [ ] Finish basic client and server functionality by end of this week
+  - [x] Make the server run
   - [ ] Fixed the reading caviat from buffers sending and receiving
+
 
