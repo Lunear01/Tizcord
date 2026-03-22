@@ -214,18 +214,18 @@ void init_colors()
 void draw_box(int y, int x, int h, int w, int pair)
 {
     attron(COLOR_PAIR(pair));
-    mvaddch(y, x, ACS_ULCORNER);
-    mvhline(y, x + 1, ACS_HLINE, w - 2);
-    mvaddch(y, x + w - 1, ACS_URCORNER);
+    mvaddch(y, x, '+');
+    mvhline(y, x + 1, '-', w - 2);
+    mvaddch(y, x + w - 1, '+');
     for (int i = 1; i < h - 1; i++)
     {
-        mvaddch(y + i, x, ACS_VLINE);
+        mvaddch(y + i, x, '|');
         mvhline(y + i, x + 1, ' ', w - 2);
-        mvaddch(y + i, x + w - 1, ACS_VLINE);
+        mvaddch(y + i, x + w - 1, '|');
     }
-    mvaddch(y + h - 1, x, ACS_LLCORNER);
-    mvhline(y + h - 1, x + 1, ACS_HLINE, w - 2);
-    mvaddch(y + h - 1, x + w - 1, ACS_LRCORNER);
+    mvaddch(y + h - 1, x, '+');
+    mvhline(y + h - 1, x + 1, '-', w - 2);
+    mvaddch(y + h - 1, x + w - 1, '+');
     attroff(COLOR_PAIR(pair));
 }
 
@@ -277,7 +277,7 @@ void draw_auth(int rows, int cols, int is_signup)
     attroff(COLOR_PAIR(5) | A_BOLD);
 
     attron(COLOR_PAIR(4));
-    mvprintw(by + 2, bx + 2, "─────────────────────────────────────");
+    mvhline(by + 2, bx + 2, '-', bw - 4);
     attroff(COLOR_PAIR(4));
 
     // Username field
@@ -473,7 +473,7 @@ void draw_server_list(int rows, int cols)
     // Sub-header
     attron(COLOR_PAIR(4));
     mvprintw(2, 3, "Choose a server to join, or press ESC to go back.");
-    mvhline(3, 0, ACS_HLINE, cols);
+    mvhline(3, 0, '-', cols);
     attroff(COLOR_PAIR(4));
 
     // Column headers
@@ -481,7 +481,7 @@ void draw_server_list(int rows, int cols)
     mvprintw(4, 3, "%-3s  %-20s  %-36s  %s", "#", "SERVER", "DESCRIPTION", "MEMBERS");
     attroff(COLOR_PAIR(9) | A_BOLD);
     attron(COLOR_PAIR(4));
-    mvhline(5, 0, ACS_HLINE, cols);
+    mvhline(5, 0, '-', cols);
     attroff(COLOR_PAIR(4));
 
     // Server rows
@@ -627,7 +627,7 @@ void draw_chat(int rows, int cols)
     // Sidebar border
     attron(COLOR_PAIR(6));
     for (int r = 0; r < rows - 1; r++)
-        mvaddch(r, 18, ACS_VLINE);
+        mvaddch(r, 18, '|');
     attroff(COLOR_PAIR(6));
 
     // ── Top bar (19..) ──
@@ -672,7 +672,7 @@ void draw_chat(int rows, int cols)
 
     // ── Input area ──
     attron(COLOR_PAIR(6));
-    mvhline(rows - 3, 19, ACS_HLINE, cols - 19);
+    mvhline(rows - 3, 19, '-', cols - 19);
     attroff(COLOR_PAIR(6));
 
     attron(COLOR_PAIR(1));
