@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pthread -I../include
+CFLAGS = -Wall -Wextra -lncurses -I../include
 
 all: server client
 
@@ -7,6 +7,9 @@ server: main.o server.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 client: client.o
+	$(CC) $(CFLAGS) -o $@ $^
+
+ui: ui.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 %.o: %.c
