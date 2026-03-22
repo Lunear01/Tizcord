@@ -6,6 +6,17 @@ CREATE TABLE user (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE friends(
+    id UUID PRIMARY KEY gen_random_uuid(),
+    user_id UUID NOT NULL,
+    friend_id UUID NOT NULL,
+    is_accepted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (friend_id) REFERENCES user(id) ON DELETE CASCADE,
+    UNIQUE (user_id, friend_id)
+)
+
 CREATE TABLE sessions (
     id UUID PRIMARY KEY gen_random_uuid(),
     user_id UUID NOT NULL,
