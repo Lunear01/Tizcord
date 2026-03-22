@@ -7,7 +7,6 @@ typedef struct {
     int socket_fd;
     char username[32];
     int current_channel_id;
-    bool is_active;
     bool is_authenticated;
 } ClientNode;
 
@@ -19,6 +18,7 @@ typedef struct {
 
 void init_server_context(ServerContext *ctx);
 int start_server(int port);
+void check_session(); 
 void run_server_loop(ServerContext *ctx);
 void handle_new_connection(ServerContext *ctx);
 int accept_connection(int listenfd);
