@@ -7,15 +7,25 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
+#define MAX_CLIENTS 10
 
 // Reset everything in the server
 void init_server_context(ServerContext *ctx) {
     ctx->client_count = 0;
     ctx->server_fd = -1;
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        ctx->clients[i].socket_fd = -1;
-        ctx->clients[i].is_active = false;
-        ctx->clients[i].is_authenticated = false;
+
+    ctx->current_capacity = MAX_CLIENTS;
+
+    //Dynamic allocate enough memory for clients
+    ctx->clients = malloc(ctx->current_capacity * sizeof(ClientNode *));
+
+    if (ctx->clients == NULL){
+        perror("malloc failed for client array")
+    }
+
+    //initialize every client to NULL
+    for (int i = 0; i < ctr->current_capacity; i++) {
+        ctr->client[i] = NULL;
     }
 }
 

@@ -11,7 +11,7 @@ typedef struct {
 } ClientNode;
 
 typedef struct {
-    ClientNode clients[MAX_CLIENTS];
+    ClientNode **clients;
     int server_fd;
     int client_count;
 } ServerContext;

@@ -1,4 +1,4 @@
-void login()
-void logout()
-void register()
+void login();
+void logout();
+void register();
 

@@ -16,5 +16,4 @@ void delete_channel(int channel_id);
 
 void send_friend_request(const char *target_username);
 void accept_friend_request(const char *target_username);
-
 void update_user_status(ServerContext *ctx, int client_index, UserStatus new_status);
