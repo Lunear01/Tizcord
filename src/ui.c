@@ -94,8 +94,8 @@ void seed_data()
     } sv[] = {
         {"GamersHQ", "All things gaming", "GG", 142},
         {"DevCorner", "Code, debug, repeat", "{}", 389},
-        {"MusicLounge", "Beats & vibes 24/7", "♪♫", 210},
-        {"StudyGroup", "Focus & productivity", ":::", 98},
+        {"MusicLounge", "Beats & vibes 24/7", "~j", 210},
+        {"StudyGroup", "Focus & productivity", "::", 98},
         {"Foodies Unite", "Recipes, reviews & eats", ">>", 176},
         {"Crypto Talk", "Markets & blockchain", "$$", 503},
     };
@@ -181,7 +181,7 @@ void seed_data()
     }
 }
 
-// ─── Color Pairs ────────────────────────────────────────────────────────────
+// ─── Color Pairs ─────────────────────────────────────────────────────────────
 //  1 = normal text on default bg
 //  2 = white on blue  (topbar / active item)
 //  3 = white on dark  (sidebar)
@@ -209,26 +209,32 @@ void init_colors()
     init_pair(10, COLOR_WHITE, COLOR_BLUE);
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/* Draw a box using ACS line-drawing characters.
+   pair is the colour pair for the border only. */
 void draw_box(int y, int x, int h, int w, int pair)
 {
     attron(COLOR_PAIR(pair));
-    mvaddch(y, x, '+');
-    mvhline(y, x + 1, '-', w - 2);
-    mvaddch(y, x + w - 1, '+');
+    /* Top edge */
+    mvaddch(y, x, ACS_ULCORNER);
+    mvhline(y, x + 1, ACS_HLINE, w - 2);
+    mvaddch(y, x + w - 1, ACS_URCORNER);
+    /* Sides + cleared interior */
     for (int i = 1; i < h - 1; i++)
     {
-        mvaddch(y + i, x, '|');
+        mvaddch(y + i, x, ACS_VLINE);
         mvhline(y + i, x + 1, ' ', w - 2);
-        mvaddch(y + i, x + w - 1, '|');
+        mvaddch(y + i, x + w - 1, ACS_VLINE);
     }
-    mvaddch(y + h - 1, x, '+');
-    mvhline(y + h - 1, x + 1, '-', w - 2);
-    mvaddch(y + h - 1, x + w - 1, '+');
+    /* Bottom edge */
+    mvaddch(y + h - 1, x, ACS_LLCORNER);
+    mvhline(y + h - 1, x + 1, ACS_HLINE, w - 2);
+    mvaddch(y + h - 1, x + w - 1, ACS_LRCORNER);
     attroff(COLOR_PAIR(pair));
 }
 
+/* Print a string centred horizontally on row. */
 void center_str(int row, const char *s, int pair, int attr)
 {
     int cols;
@@ -247,54 +253,207 @@ typedef struct
 {
     char username[MAX_NAME_LEN];
     char password[MAX_PASS_LEN];
-    int field; // 0=username 1=password
+    int field; // 0=username  1=password
     char error[80];
     char success[80];
 } AuthState;
 
 AuthState auth = {"", "", 0, "", ""};
 
+/* ── Thick bitmap font for TIZCORD logo ────────────────────────────────────
+   Each glyph is GLYPH_H rows × GLYPH_W cols, stored MSB-left in a uint16_t.
+   Rendered with full-block (█) and half-step (▓) chars for the double-border
+   look: outer edge = '█', one-cell inset = '▓', interior = ' '.          */
+
+#define GLYPH_W 7
+#define GLYPH_H 9
+#define LOGO_LEN 7 /* T I Z C O R D */
+
+/* Bit 6 = leftmost column */
+static const uint16_t FONT_T[GLYPH_H] = {
+    0b1111111,
+    0b1111111,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+};
+static const uint16_t FONT_I[GLYPH_H] = {
+    0b1111111,
+    0b1111111,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b0011100,
+    0b1111111,
+    0b1111111,
+};
+static const uint16_t FONT_Z[GLYPH_H] = {
+    0b1111111,
+    0b1111111,
+    0b0000111,
+    0b0001110,
+    0b0011100,
+    0b0111000,
+    0b1110000,
+    0b1111111,
+    0b1111111,
+};
+static const uint16_t FONT_C[GLYPH_H] = {
+    0b1111111,
+    0b1111111,
+    0b1100000,
+    0b1100000,
+    0b1100000,
+    0b1100000,
+    0b1100000,
+    0b1111111,
+    0b1111111,
+};
+static const uint16_t FONT_O[GLYPH_H] = {
+    0b1111111,
+    0b1111111,
+    0b1100011,
+    0b1100011,
+    0b1100011,
+    0b1100011,
+    0b1100011,
+    0b1111111,
+    0b1111111,
+};
+static const uint16_t FONT_R[GLYPH_H] = {
+    0b1111111,
+    0b1111111,
+    0b1100011,
+    0b1100011,
+    0b1111110,
+    0b1111110,
+    0b1100110,
+    0b1100011,
+    0b1100011,
+};
+static const uint16_t FONT_D[GLYPH_H] = {
+    0b0111110,
+    0b1111111,
+    0b1100011,
+    0b1100011,
+    0b1100011,
+    0b1100011,
+    0b1100011,
+    0b1111111,
+    0b0111110,
+};
+
+static const uint16_t *TIZCORD_GLYPHS[LOGO_LEN] = {
+    FONT_T, FONT_I, FONT_Z, FONT_C, FONT_O, FONT_R, FONT_D};
+
+/* Total pixel width of the logo with 1-col gaps between letters */
+static const int ascii_logo_lines = GLYPH_H; /* kept for layout compat */
+
+/* Draw the thick logo at terminal row `start_row`, centred on `cols`.
+   Uses colour pair `pair` (should be A_BOLD | COLOR_PAIR(5) or similar). */
+static void draw_logo(int start_row, int cols, int pair)
+{
+    /* Total width: LOGO_LEN glyphs × GLYPH_W + (LOGO_LEN-1) gaps of 1 */
+    int total_w = LOGO_LEN * GLYPH_W + (LOGO_LEN - 1);
+    int lx = (cols - total_w) / 2;
+    if (lx < 0)
+        lx = 0;
+
+    for (int row = 0; row < GLYPH_H; row++)
+    {
+        int cx = lx;
+        for (int g = 0; g < LOGO_LEN; g++)
+        {
+            uint16_t bits = TIZCORD_GLYPHS[g][row];
+            for (int col = 0; col < GLYPH_W; col++)
+            {
+                int set = (bits >> (GLYPH_W - 1 - col)) & 1;
+                attron(COLOR_PAIR(pair) | A_BOLD);
+                mvaddch(start_row + row, cx + col,
+                        set ? (wchar_t)0x2588 /* █ full block */
+                            : ' ');
+                attroff(COLOR_PAIR(pair) | A_BOLD);
+            }
+            cx += GLYPH_W;
+            if (g < LOGO_LEN - 1)
+                cx += 1; /* gap */
+        }
+    }
+}
+
 void draw_auth(int rows, int cols, int is_signup)
 {
     clear();
-    int bw = 44, bh = 14;
-    int by = (rows - bh) / 2;
-    int bx = (cols - bw) / 2;
 
-    // Background dots pattern
+    /* Box dimensions – wide enough for the field label + content. */
+    int bw = 48; /* must be >= field width (38) + 2*margin(3) + 2*border(1) = 45 */
+    int bh = 13;
+    int logo_top = 1; /* first row of logo */
+
+    /* Vertically centre the logo + a gap + the box */
+    int total_h = ascii_logo_lines + 1 + bh;
+    int by = (rows - total_h) / 2;
+    if (by < logo_top + ascii_logo_lines + 1)
+        by = logo_top + ascii_logo_lines + 1;
+    int bx = (cols - bw) / 2;
+    if (bx < 0)
+        bx = 0;
+
+    /* Recompute logo start so it sits above the box */
+    int ly = by - ascii_logo_lines - 1;
+    if (ly < 0)
+        ly = 0;
+
+    /* Background dot pattern */
     attron(COLOR_PAIR(4));
     for (int r = 0; r < rows; r += 3)
         for (int c = 0; c < cols; c += 6)
             mvaddch(r, c, '.');
     attroff(COLOR_PAIR(4));
 
+    /* Logo */
+    draw_logo(ly, cols, 5);
+
+    /* Form box */
     draw_box(by, bx, bh, bw, 5);
 
-    // Title
+    /* Title */
+    const char *title = is_signup ? " Create Account " : " Welcome Back ";
+    int tx = bx + (bw - (int)strlen(title)) / 2;
     attron(COLOR_PAIR(5) | A_BOLD);
-    const char *title = is_signup ? "  Create Account  " : "  Welcome Back  ";
-    mvprintw(by + 1, bx + (bw - strlen(title)) / 2, "%s", title);
+    mvprintw(by + 1, tx, "%s", title);
     attroff(COLOR_PAIR(5) | A_BOLD);
 
+    /* Separator under title */
     attron(COLOR_PAIR(4));
-    mvhline(by + 2, bx + 2, '-', bw - 4);
+    mvhline(by + 2, bx + 1, ACS_HLINE, bw - 2);
     attroff(COLOR_PAIR(4));
 
-    // Username field
+    /* Field inner width:  bw - 2 (border) - 2*3 (margin) = bw-8
+       With the leading/trailing space in the printw below that's bw-10.
+       We'll use a fixed value that fits inside bw=46:  bw-10 = 36. */
+    int fw = bw - 10; /* 38 for bw=48 */
+
+    /* ── Username field ── */
     int fy = by + 4;
     attron(COLOR_PAIR(4));
-    mvprintw(fy, bx + 3, "Username:");
+    mvprintw(fy, bx + 3, "Username");
     attroff(COLOR_PAIR(4));
 
     int active0 = (auth.field == 0);
     attron(COLOR_PAIR(active0 ? 2 : 1));
-    mvprintw(fy + 1, bx + 3, " %-36s ", auth.username);
+    mvprintw(fy + 1, bx + 3, " %-*s ", fw, auth.username);
     attroff(COLOR_PAIR(active0 ? 2 : 1));
 
-    // Password field
+    /* ── Password field ── */
     int py = fy + 3;
     attron(COLOR_PAIR(4));
-    mvprintw(py, bx + 3, "Password:");
+    mvprintw(py, bx + 3, "Password");
     attroff(COLOR_PAIR(4));
 
     char masked[MAX_PASS_LEN + 1];
@@ -305,34 +464,41 @@ void draw_auth(int rows, int cols, int is_signup)
 
     int active1 = (auth.field == 1);
     attron(COLOR_PAIR(active1 ? 2 : 1));
-    mvprintw(py + 1, bx + 3, " %-36s ", masked);
+    mvprintw(py + 1, bx + 3, " %-*s ", fw, masked);
     attroff(COLOR_PAIR(active1 ? 2 : 1));
 
-    // Error / success
+    /* ── Error / success message ── */
+    int msg_row = by + bh - 3;
     if (auth.error[0])
     {
         attron(COLOR_PAIR(8) | A_BOLD);
-        mvprintw(by + bh - 4, bx + 3, "%-38s", auth.error);
+        mvprintw(msg_row, bx + 3, "%-*.*s", fw + 2, fw + 2, auth.error);
         attroff(COLOR_PAIR(8) | A_BOLD);
     }
     if (auth.success[0])
     {
         attron(COLOR_PAIR(7) | A_BOLD);
-        mvprintw(by + bh - 4, bx + 3, "%-38s", auth.success);
+        mvprintw(msg_row, bx + 3, "%-*.*s", fw + 2, fw + 2, auth.success);
         attroff(COLOR_PAIR(7) | A_BOLD);
     }
 
-    // Hints
+    /* ── Hint line ── */
+    /* Separator above hint */
     attron(COLOR_PAIR(4));
-    const char *hint = is_signup
-                           ? "TAB: switch field  ENTER: create  F2: login"
-                           : "TAB: switch field  ENTER: login   F2: signup";
-    mvprintw(by + bh - 2, bx + 3, "%-38s", hint);
+    mvhline(by + bh - 2, bx + 1, ACS_HLINE, bw - 2);
     attroff(COLOR_PAIR(4));
 
-    // Place cursor
+    const char *hint = is_signup
+                           ? "TAB/field  ENTER/create  F2/login"
+                           : "TAB/field  ENTER/login   F2/signup";
+    int hx = bx + (bw - (int)strlen(hint)) / 2;
+    attron(COLOR_PAIR(4));
+    mvprintw(by + bh - 1, hx, "%s", hint);
+    attroff(COLOR_PAIR(4));
+
+    /* Place cursor inside the active field */
     if (auth.field == 0)
-        move(fy + 1, bx + 4 + strlen(auth.username));
+        move(fy + 1, bx + 4 + (int)strlen(auth.username));
     else
         move(py + 1, bx + 4 + plen);
 
@@ -381,15 +547,12 @@ void handle_auth_input(int ch, int is_signup)
 
         if (is_signup)
         {
-            // Check duplicate
             for (int i = 0; i < user_count; i++)
-            {
                 if (!strcmp(users[i].username, auth.username))
                 {
                     strcpy(auth.error, "Username already taken.");
                     return;
                 }
-            }
             if (user_count >= MAX_USERS)
             {
                 strcpy(auth.error, "Server full.");
@@ -405,14 +568,12 @@ void handle_auth_input(int ch, int is_signup)
         {
             int found = -1;
             for (int i = 0; i < user_count; i++)
-            {
                 if (!strcmp(users[i].username, auth.username) &&
                     !strcmp(users[i].password, auth.password))
                 {
                     found = i;
                     break;
                 }
-            }
             if (found < 0)
             {
                 strcpy(auth.error, "Invalid username or password.");
@@ -426,9 +587,7 @@ void handle_auth_input(int ch, int is_signup)
                 current_screen = SCREEN_CHAT;
             }
             else
-            {
                 current_screen = SCREEN_SERVERS;
-            }
         }
         auth.username[0] = '\0';
         auth.password[0] = '\0';
@@ -453,38 +612,48 @@ void handle_auth_input(int ch, int is_signup)
     }
 }
 
-// ─── Screen: SERVER LIST ────────────────────────────────────────────────────
+// ─── Screen: SERVER LIST ─────────────────────────────────────────────────────
 
-int server_cursor = 0; // highlighted row
+int server_cursor = 0; /* highlighted row */
 
 void draw_server_list(int rows, int cols)
 {
     clear();
 
-    // Top bar
+    /* ── Top bar ── */
     attron(COLOR_PAIR(10) | A_BOLD);
     mvhline(0, 0, ' ', cols);
     mvprintw(0, 2, " SERVER BROWSER");
     if (current_user >= 0)
-        mvprintw(0, cols - strlen(users[current_user].username) - 4,
-                 "[%s]", users[current_user].username);
+    {
+        const char *uname = users[current_user].username;
+        mvprintw(0, cols - (int)strlen(uname) - 3, "[%s]", uname);
+    }
     attroff(COLOR_PAIR(10) | A_BOLD);
 
-    // Sub-header
+    /* ── Sub-header ── */
     attron(COLOR_PAIR(4));
-    mvprintw(2, 3, "Choose a server to join, or press ESC to go back.");
-    mvhline(3, 0, '-', cols);
+    mvprintw(2, 3, "Choose a server to join, or press ESC to logout.");
+    mvhline(3, 0, ACS_HLINE, cols);
     attroff(COLOR_PAIR(4));
 
-    // Column headers
+    /* ── Column headers ── */
     attron(COLOR_PAIR(9) | A_BOLD);
     mvprintw(4, 3, "%-3s  %-20s  %-36s  %s", "#", "SERVER", "DESCRIPTION", "MEMBERS");
     attroff(COLOR_PAIR(9) | A_BOLD);
     attron(COLOR_PAIR(4));
-    mvhline(5, 0, '-', cols);
+    mvhline(5, 0, ACS_HLINE, cols);
     attroff(COLOR_PAIR(4));
 
-    // Server rows
+    /* ── Server rows ── */
+    /* Compute max usable width for description so it never overflows */
+    int desc_col = 30;                   /* column where description starts */
+    int mbr_col = 68;                    /* column where member count starts */
+    int desc_w = mbr_col - desc_col - 2; /* ≈36 chars */
+    int mbr_w = cols - mbr_col - 2;      /* remainder */
+    if (mbr_w < 10)
+        mbr_w = 10;
+
     for (int i = 0; i < server_count; i++)
     {
         int row = 6 + i * 2;
@@ -494,8 +663,11 @@ void draw_server_list(int rows, int cols)
         {
             attron(COLOR_PAIR(2) | A_BOLD);
             mvhline(row, 0, ' ', cols);
-            mvprintw(row, 3, "%-3d  %-20s  %-36s  %d members",
-                     i + 1, sv->name, sv->description, sv->member_count);
+            mvprintw(row, 3, "%-3d  %-20.*s  %-*.*s  %d members",
+                     i + 1,
+                     20, sv->name,
+                     desc_w, desc_w, sv->description,
+                     sv->member_count);
             attroff(COLOR_PAIR(2) | A_BOLD);
         }
         else
@@ -503,20 +675,22 @@ void draw_server_list(int rows, int cols)
             attron(COLOR_PAIR(5) | A_BOLD);
             mvprintw(row, 3, "%-3d", i + 1);
             attroff(COLOR_PAIR(5) | A_BOLD);
+
             attron(COLOR_PAIR(1));
-            mvprintw(row, 8, "%-20s", sv->name);
+            mvprintw(row, 8, "%-20.*s", 20, sv->name);
             attroff(COLOR_PAIR(1));
+
             attron(COLOR_PAIR(4));
-            mvprintw(row, 30, "%-36s", sv->description);
-            mvprintw(row, 68, "%d members", sv->member_count);
+            mvprintw(row, desc_col, "%-*.*s", desc_w, desc_w, sv->description);
+            mvprintw(row, mbr_col, "%d members", sv->member_count);
             attroff(COLOR_PAIR(4));
         }
     }
 
-    // Status bar
+    /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER/CLICK: join   ESC: logout");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -541,7 +715,7 @@ void handle_server_input(int ch)
         users[current_user].server_id = active_server;
         current_screen = SCREEN_CHAT;
         break;
-    case 27: // ESC = logout
+    case 27: /* ESC = logout */
         current_user = -1;
         active_server = -1;
         server_cursor = 0;
@@ -570,52 +744,56 @@ void handle_server_input(int ch)
     }
 }
 
-// ─── Screen: CHAT ───────────────────────────────────────────────────────────
+// ─── Screen: CHAT ────────────────────────────────────────────────────────────
 
 char chat_input[MAX_MSG_LEN] = {0};
 int chat_input_len = 0;
+
+/* Width of the sidebar panel */
+#define SIDEBAR_W 20
 
 void draw_chat(int rows, int cols)
 {
     clear();
     Server *sv = &servers[active_server];
 
-    // ── Sidebar (0..17) ──
+    /* ── Sidebar background (columns 0..SIDEBAR_W-1) ── */
     attron(COLOR_PAIR(3));
     for (int r = 0; r < rows - 1; r++)
-        mvhline(r, 0, ' ', 18);
+        mvhline(r, 0, ' ', SIDEBAR_W);
     attroff(COLOR_PAIR(3));
 
-    // Server name in sidebar
+    /* Server name header */
     attron(COLOR_PAIR(10) | A_BOLD);
-    mvhline(0, 0, ' ', 18);
-    mvprintw(0, 1, " %-16s", sv->name);
+    mvhline(0, 0, ' ', SIDEBAR_W);
+    mvprintw(0, 1, " %-*.*s", SIDEBAR_W - 3, SIDEBAR_W - 3, sv->name);
     attroff(COLOR_PAIR(10) | A_BOLD);
 
-    // Channel label
+    /* "CHANNELS" label */
     attron(COLOR_PAIR(4));
     mvprintw(2, 2, "CHANNELS");
     attroff(COLOR_PAIR(4));
 
-    // Channel list
+    /* Channel list */
+    int ch_label_w = SIDEBAR_W - 5; /* room for " # " prefix + border */
     for (int i = 0; i < sv->channel_count; i++)
     {
         int row = 4 + i * 2;
         if (i == active_channel)
         {
             attron(COLOR_PAIR(2) | A_BOLD);
-            mvprintw(row, 1, " # %-14s", sv->channels[i].name);
+            mvprintw(row, 1, " # %-*.*s", ch_label_w, ch_label_w, sv->channels[i].name);
             attroff(COLOR_PAIR(2) | A_BOLD);
         }
         else
         {
             attron(COLOR_PAIR(3));
-            mvprintw(row, 1, " # %-14s", sv->channels[i].name);
+            mvprintw(row, 1, " # %-*.*s", ch_label_w, ch_label_w, sv->channels[i].name);
             attroff(COLOR_PAIR(3));
         }
     }
 
-    // Servers button at bottom of sidebar
+    /* Bottom sidebar buttons */
     attron(COLOR_PAIR(9) | A_BOLD);
     mvprintw(rows - 3, 1, " << Servers");
     attroff(COLOR_PAIR(9) | A_BOLD);
@@ -624,70 +802,98 @@ void draw_chat(int rows, int cols)
     mvprintw(rows - 2, 1, " Logout");
     attroff(COLOR_PAIR(8) | A_BOLD);
 
-    // Sidebar border
+    /* Sidebar right border */
     attron(COLOR_PAIR(6));
     for (int r = 0; r < rows - 1; r++)
-        mvaddch(r, 18, '|');
+        mvaddch(r, SIDEBAR_W, ACS_VLINE);
     attroff(COLOR_PAIR(6));
 
-    // ── Top bar (19..) ──
+    /* ── Top bar (main area) ── */
+    int main_x = SIDEBAR_W + 1;
+    int main_w = cols - main_x;
+
     attron(COLOR_PAIR(10) | A_BOLD);
-    mvhline(0, 19, ' ', cols - 19);
-    mvprintw(0, 20, " # %s", sv->channels[active_channel].name);
+    mvhline(0, main_x, ' ', main_w);
+    mvprintw(0, main_x + 1, " # %s", sv->channels[active_channel].name);
     if (current_user >= 0)
-        mvprintw(0, cols - strlen(users[current_user].username) - 3,
-                 " %s ", users[current_user].username);
+    {
+        const char *uname = users[current_user].username;
+        int ux = cols - (int)strlen(uname) - 2;
+        if (ux > main_x + 1)
+            mvprintw(0, ux, "%s ", uname);
+    }
     attroff(COLOR_PAIR(10) | A_BOLD);
 
-    // ── Messages ──
-    Channel *ch = &sv->channels[active_channel];
-    int msg_area = rows - 4;
-    int start = ch->msg_count > msg_area ? ch->msg_count - msg_area : 0;
+    /* ── Messages area ── */
+    Channel *chan = &sv->channels[active_channel];
 
+    /* Clear message area */
     attron(COLOR_PAIR(1));
     for (int r = 1; r < rows - 2; r++)
-        mvhline(r, 19, ' ', cols - 19);
+        mvhline(r, main_x, ' ', main_w);
     attroff(COLOR_PAIR(1));
 
-    for (int i = start; i < ch->msg_count; i++)
+    int msg_area = rows - 4; /* rows available for messages */
+    int start = chan->msg_count > msg_area ? chan->msg_count - msg_area : 0;
+    int body_col = main_x + 20;       /* column where message body begins */
+    int body_w = cols - body_col - 1; /* available width for body text */
+    if (body_w < 1)
+        body_w = 1;
+
+    for (int i = start; i < chan->msg_count; i++)
     {
         int row = 2 + (i - start);
-        Message *m = &ch->messages[i];
+        Message *m = &chan->messages[i];
+
         char tstr[8];
-        struct tm *tm = localtime(&m->ts);
-        strftime(tstr, sizeof(tstr), "%H:%M", tm);
+        struct tm *tm_info = localtime(&m->ts);
+        strftime(tstr, sizeof(tstr), "%H:%M", tm_info);
 
         attron(COLOR_PAIR(4));
-        mvprintw(row, 20, "%s", tstr);
+        mvprintw(row, main_x + 1, "%s", tstr);
         attroff(COLOR_PAIR(4));
 
         attron(COLOR_PAIR(5) | A_BOLD);
-        mvprintw(row, 26, "%-12s", m->sender);
+        mvprintw(row, main_x + 7, "%-12.*s", 12, m->sender);
         attroff(COLOR_PAIR(5) | A_BOLD);
 
         attron(COLOR_PAIR(1));
-        mvprintw(row, 39, "%.*s", cols - 40, m->body);
+        mvprintw(row, body_col, "%.*s", body_w, m->body);
         attroff(COLOR_PAIR(1));
     }
 
-    // ── Input area ──
+    /* ── Input separator ── */
     attron(COLOR_PAIR(6));
-    mvhline(rows - 3, 19, '-', cols - 19);
+    mvhline(rows - 3, main_x, ACS_HLINE, main_w);
     attroff(COLOR_PAIR(6));
 
+    /* ── Input line ── */
+    char prompt_buf[MAX_NAME_LEN + 4];
+    snprintf(prompt_buf, sizeof(prompt_buf), "[#%s] ", sv->channels[active_channel].name);
+    int prompt_len = strlen(prompt_buf);
+    int input_col = main_x + 1 + prompt_len;
+    int input_w = cols - input_col - 1;
+    if (input_w < 1)
+        input_w = 1;
+
     attron(COLOR_PAIR(1));
-    mvhline(rows - 2, 19, ' ', cols - 19);
-    mvprintw(rows - 2, 20, "[#%s] %s", sv->channels[active_channel].name, chat_input);
+    mvhline(rows - 2, main_x, ' ', main_w);
+    attron(COLOR_PAIR(4));
+    mvprintw(rows - 2, main_x + 1, "%s", prompt_buf);
+    attroff(COLOR_PAIR(4));
+    mvprintw(rows - 2, input_col, "%.*s", input_w, chat_input);
     attroff(COLOR_PAIR(1));
 
-    // ── Status bar ──
+    /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 1, " TAB: channels  ENTER: send  CLICK: select channel  q: quit");
+    mvprintw(rows - 1, 1, " TAB: channels  ENTER: send  CLICK: channel  q: quit");
     attroff(COLOR_PAIR(3));
 
-    // Cursor
-    int cx = 20 + 2 + strlen(sv->channels[active_channel].name) + 2 + chat_input_len;
+    /* Cursor */
+    int cx = input_col + chat_input_len;
+    if (cx >= cols)
+        cx = cols - 1;
     move(rows - 2, cx);
     refresh();
 }
@@ -732,8 +938,7 @@ void handle_chat_input(int ch)
         MEVENT me;
         if (getmouse(&me) == OK && me.bstate & BUTTON1_CLICKED)
         {
-            // Click on channel in sidebar
-            if (me.x < 18)
+            if (me.x < SIDEBAR_W)
             {
                 for (int i = 0; i < sv->channel_count; i++)
                 {
@@ -745,7 +950,6 @@ void handle_chat_input(int ch)
                         break;
                     }
                 }
-                // << Servers button
                 int rows;
                 getmaxyx(stdscr, rows, (int){0});
                 if (me.y == rows - 3)
@@ -755,7 +959,6 @@ void handle_chat_input(int ch)
                     server_cursor = 0;
                     current_screen = SCREEN_SERVERS;
                 }
-                // Logout
                 if (me.y == rows - 2)
                 {
                     users[current_user].server_id = -1;
