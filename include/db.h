@@ -1,12 +1,15 @@
 
 typedef struct DbContext DbContext;
 
+/* Helper Utilities */
+void generate_uuid_string(char* out_str);
+
 /* Database connection */
 DbContext* db_connect(const char* conninfo);
 void db_disconnect(DbContext* db);
 
 /* User */
-int db_get_or_create_user(DbContext* db, const char* username, char* user_id_out, int out_len);
+int db_create_user(DbContext* db, const char* username, const char* password_hash, char* user_id_out);
 
 /* Server */
 int db_get_or_create_server(DbContext* db, const char* name, char* server_id_out, int out_len);

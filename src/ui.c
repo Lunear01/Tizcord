@@ -3,12 +3,16 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
+#include "../include/ui.h"
+
+#include "../include/ui.h"
+#include "../include/client.h"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 #define MAX_USERS 16
-#define MAX_SERVERS 8
-#define MAX_CHANNELS 5
+#define UI_MAX_SERVERS 8
+#define UI_MAX_CHANNELS 5
 #define MAX_MESSAGES 64
 #define MAX_MSG_LEN 240
 #define MAX_NAME_LEN 32
@@ -45,7 +49,7 @@ typedef struct
     char name[MAX_NAME_LEN];
     Message messages[MAX_MESSAGES];
     int msg_count;
-} Channel;
+} UIChannel;
 
 typedef struct
 {
@@ -54,9 +58,9 @@ typedef struct
     char description[80];
     char icon[4]; // emoji-like 2-char
     int member_count;
-    Channel channels[MAX_CHANNELS];
+    UIChannel channels[UI_MAX_CHANNELS];
     int channel_count;
-} Server;
+} UIServer;
 
 // ─── Global State ────────────────────────────────────────────────────────────
 
@@ -64,7 +68,7 @@ User users[MAX_USERS];
 int user_count = 0;
 int current_user = -1; // index into users[]
 
-Server servers[MAX_SERVERS];
+UIServer servers[UI_MAX_SERVERS];
 int server_count = 0;
 
 Screen current_screen = SCREEN_LOGIN;
@@ -170,8 +174,8 @@ void seed_data()
     }
     for (int i = 0; i < (int)(sizeof(msgs) / sizeof(msgs[0])); i++)
     {
-        Server *sv2 = &servers[msgs[i].s];
-        Channel *ch = &sv2->channels[msgs[i].c];
+        UIServer *sv2 = &servers[msgs[i].s];
+        UIChannel *ch = &sv2->channels[msgs[i].c];
         if (ch->msg_count >= MAX_MESSAGES)
             continue;
         Message *m = &ch->messages[ch->msg_count++];
@@ -547,22 +551,21 @@ void handle_auth_input(int ch, int is_signup)
 
         if (is_signup)
         {
-            for (int i = 0; i < user_count; i++)
-                if (!strcmp(users[i].username, auth.username))
-                {
-                    strcpy(auth.error, "Username already taken.");
-                    return;
-                }
-            if (user_count >= MAX_USERS)
-            {
-                strcpy(auth.error, "Server full.");
-                break;
+            int status = send_register(auth.username, auth.password);
+            
+            if (status == 0) {
+                // Network Register succeeded! Proceed into the mock local state to trick the UI flow
+                strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
+                strncpy(users[user_count].password, auth.password, MAX_PASS_LEN - 1);
+                users[user_count].server_id = -1;
+                current_user = user_count++;
+                current_screen = SCREEN_SERVERS;
+                strcpy(auth.success, "Registration Successful!");
+            } else {
+                // Server rejected or network died
+                strcpy(auth.error, "Username taken or Network Error.");
+                return;
             }
-            strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
-            strncpy(users[user_count].password, auth.password, MAX_PASS_LEN - 1);
-            users[user_count].server_id = -1;
-            current_user = user_count++;
-            current_screen = SCREEN_SERVERS;
         }
         else
         {
@@ -657,7 +660,7 @@ void draw_server_list(int rows, int cols)
     for (int i = 0; i < server_count; i++)
     {
         int row = 6 + i * 2;
-        Server *sv = &servers[i];
+        UIServer *sv = &servers[i];
 
         if (i == server_cursor)
         {
@@ -755,7 +758,7 @@ int chat_input_len = 0;
 void draw_chat(int rows, int cols)
 {
     clear();
-    Server *sv = &servers[active_server];
+    UIServer *sv = &servers[active_server];
 
     /* ── Sidebar background (columns 0..SIDEBAR_W-1) ── */
     attron(COLOR_PAIR(3));
@@ -825,7 +828,7 @@ void draw_chat(int rows, int cols)
     attroff(COLOR_PAIR(10) | A_BOLD);
 
     /* ── Messages area ── */
-    Channel *chan = &sv->channels[active_channel];
+    UIChannel *chan = &sv->channels[active_channel];
 
     /* Clear message area */
     attron(COLOR_PAIR(1));
@@ -900,7 +903,7 @@ void draw_chat(int rows, int cols)
 
 void handle_chat_input(int ch)
 {
-    Server *sv = &servers[active_server];
+    UIServer *sv = &servers[active_server];
 
     switch (ch)
     {
@@ -914,7 +917,7 @@ void handle_chat_input(int ch)
     case KEY_ENTER:
         if (chat_input_len > 0)
         {
-            Channel *c = &sv->channels[active_channel];
+            UIChannel *c = &sv->channels[active_channel];
             if (c->msg_count < MAX_MESSAGES)
             {
                 Message *m = &c->messages[c->msg_count++];
@@ -982,7 +985,7 @@ void handle_chat_input(int ch)
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-int main()
+void start_ui(void)
 {
     seed_data();
 
@@ -1038,5 +1041,4 @@ int main()
     }
 
     endwin();
-    return 0;
 }
