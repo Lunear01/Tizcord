@@ -49,6 +49,25 @@ void connect_to_server(const char *ip_address, int port) {
     printf("[Client] Successfully connected to %s:%d!\n", ip_address, port);
 }
 
+int send_register(const char *username, const char *password) {
+    if (client_socket < 0) return -1;
+
+    TizcordPacket packet = create_base_packet(MSG_LOGIN);
+    packet.payload.auth.action = AUTH_REGISTER;
+    strncpy(packet.payload.auth.username, username, sizeof(packet.payload.auth.username) - 1);
+    strncpy(packet.payload.auth.password, password, sizeof(packet.payload.auth.password) - 1);
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+    
+    TizcordPacket reply;
+    int n = read(client_socket, &reply, sizeof(TizcordPacket));
+    if (n > 0 && reply.type == MSG_LOGIN && reply.payload.auth.action == AUTH_REGISTER) {
+        return reply.payload.auth.status_code; // 0 = Success, 1 = Error
+    }
+    
+    return -1; // Network failure
+}
+
 void create_server(const char *server_name) {
     if (client_socket < 0) return;
     

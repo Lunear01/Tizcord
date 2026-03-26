@@ -46,3 +46,37 @@ void db_disconnect(DbContext* db) {
         free(db);
     }
 }
+
+int db_create_user(DbContext* db, const char* username, const char* password_hash, char* user_id_out) {
+    // Generate UUID
+    char new_id[37];
+    generate_uuid_string(new_id);
+
+    // Dummy email since email is NOT NULL UNIQUE but we skip it for now
+    char email[256];
+    snprintf(email, sizeof(email), "%s@dummy.com", username);
+
+    const char* sql = "INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?);";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare user insert");
+    }
+
+    sqlite3_bind_text(stmt, 1, new_id, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, email, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 4, password_hash, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute user insert");
+    }
+
+    if (user_id_out) {
+        strcpy(user_id_out, new_id);
+    }
+    return 0;
+}

@@ -1,5 +1,6 @@
 #include "../include/server.h"
 #include "../include/protocol.h" 
+#include "../include/auth.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,26 +8,13 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define MAX_CLIENTS 10
+int accept_connection(int listenfd);
 
 // Reset everything in the server
 void init_server_context(ServerContext *ctx) {
     ctx->client_count = 0;
     ctx->server_fd = -1;
-
-    ctx->current_capacity = MAX_CLIENTS;
-
-    //Dynamic allocate enough memory for clients
-    ctx->clients = malloc(ctx->current_capacity * sizeof(ClientNode *));
-
-    if (ctx->clients == NULL){
-        perror("malloc failed for client array")
-    }
-
-    //initialize every client to NULL
-    for (int i = 0; i < ctr->current_capacity; i++) {
-        ctr->client[i] = NULL;
-    }
+    memset(ctx->clients, 0, sizeof(ctx->clients));
 }
 
 // Start server at a port ready to listen
@@ -72,16 +60,47 @@ int start_server(int port) {
 
 // Handle individual client communication
 void *client_handler(void *arg) {
+    ClientNode *client = (ClientNode *)arg;
+    TizcordPacket packet;
+    
+    // Read packets in a loop
+    while (read(client->socket_fd, &packet, sizeof(TizcordPacket)) > 0) {
+        if (packet.type == MSG_LOGIN) {
+            handle_auth_packet(client->ctx, client->socket_fd, &packet);
+        }
+    }
+    
+    close(client->socket_fd);
+    printf("Client disconnected.\n");
+    return NULL;
 }
 
 // Handle new connections
 void handle_new_connection(ServerContext *ctx) {
-   
+    int client_fd = accept_connection(ctx->server_fd);
+    if (client_fd < 0) return;
+    
+    if (ctx->client_count >= MAX_CLIENTS) {
+        printf("Server full! Rejecting incoming connection.\n");
+        close(client_fd);
+        return;
+    }
+    
+    // Grab the next available static ClientNode slots
+    ClientNode *client = &ctx->clients[ctx->client_count++];
+    client->socket_fd = client_fd;
+    client->ctx = ctx; 
+    
+    pthread_t tid;
+    pthread_create(&tid, NULL, client_handler, client);
+    pthread_detach(tid);
 }
 
 // Run forever and call handle_new_connection
 void run_server_loop(ServerContext *ctx) {
-
+    while (1) {
+        handle_new_connection(ctx);
+    }
 }
 
 // TEST CODE FROM LAB 10
