@@ -1,6 +1,9 @@
 // This is the file that both server and client will include
 // Prevents segfaults when packets being sent/received
 
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
+
 typedef enum {
     MSG_LOGIN,
     MSG_DM,
@@ -39,6 +42,7 @@ typedef enum {
 
 typedef struct {
     AuthAction action;
+    int status_code;
     char username[32];
     char password[64]; // In a real app, ensure this is hashed!
 } AuthPayload;
@@ -74,3 +78,5 @@ typedef struct {
     long timestamp;
     char receiver[32];
 } TizcordPacket;
+
+#endif

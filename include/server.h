@@ -1,5 +1,8 @@
 // Server header file for a simple chat server application
 
+#ifndef SERVER_H
+#define SERVER_H
+
 #define MAX_CLIENTS 64
 #define MAX_CHANNELS 16
 #define MAX_SERVERS 16
@@ -40,9 +43,10 @@ typedef struct {
     char username[MAX_NAME_LEN];
     TizcordServerMembership tizcord_membership[MAX_SERVERS];
     int active_tizcord_server;
+    struct ServerContext* ctx; // Added pointer to parent context
 } ClientNode;
 
-typedef struct {
+typedef struct ServerContext { // Named the struct properly for pointer access
     int server_fd;
     int client_count;
     ClientNode clients[MAX_CLIENTS];
@@ -76,3 +80,5 @@ void send_private_message(ServerContext* ctx, int sender_index, const char* reci
 
 /* safe send */
 int safe_send(int fd, const char* msg, int len);
+
+#endif
