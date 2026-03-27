@@ -59,7 +59,7 @@ typedef struct ServerContext { // Named the struct properly for pointer access
 
 
 /* Server lifecycle */
-void init_server_context(ServerContext* ctx);
+void init_server_context(ServerContext* ctx, DbContext* db);
 int start_server(int port);
 void run_server_loop(ServerContext* ctx);
 
