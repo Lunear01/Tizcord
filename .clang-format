@@ -4,7 +4,7 @@ BasedOnStyle: Google
 
 # Language-specific settings
 Language: Cpp
-Standard: c11
+Standard: c17
 
 # Core layout (Google defaults to 2, many C devs prefer 4)
 ColumnLimit: 80

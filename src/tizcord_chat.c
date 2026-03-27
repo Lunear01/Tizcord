@@ -1,4 +1,4 @@
-#include "../include/chat.h"
+#include "../include/tizcord_chat.h"
 #include "../include/server.h"
 #include "../include/protocol.h"
 #include "../include/db.h"

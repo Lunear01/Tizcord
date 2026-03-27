@@ -1,6 +1,7 @@
 #include "../include/server.h"
 #include "../include/protocol.h" 
 #include "../include/auth.h"
+#include "../include/db.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,13 +9,14 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-int accept_connection(int listenfd);
-
 // Reset everything in the server
 void init_server_context(ServerContext *ctx) {
     ctx->client_count = 0;
-    ctx->server_fd = -1;
+    ctx->tizcord_server_count = 0;
     memset(ctx->clients, 0, sizeof(ctx->clients));
+    memset(ctx->tizcord_servers, 0, sizeof(ctx->tizcord_servers));
+    ctx->tizcord_server_count = 0;
+    ctx->db = db_connect("tizcord.db");
 }
 
 // Start server at a port ready to listen

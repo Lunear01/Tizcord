@@ -8,23 +8,23 @@
 #define MAX_SERVERS 16
 #define MAX_SERVER_MEMBERS 64
 #define MAX_NAME_LEN 32
-#define UUID_LEN 37
 #define BUFFER_SIZE 1024
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "db.h"
 #include "protocol.h"
 
 typedef struct {
-    char id[UUID_LEN];
+    uint64_t id;
     char name[MAX_NAME_LEN];
     int member_fds[MAX_SERVER_MEMBERS];
     int member_count;
 } Channel;
 
 typedef struct {
-    char id[UUID_LEN];
+    uint64_t id;
     char name[MAX_NAME_LEN];
     Channel channels[MAX_CHANNELS];
     int channel_count;
@@ -33,17 +33,18 @@ typedef struct {
 } TizcordServer;
 
 typedef struct {
-    int server_idx;
-    int channel_idx;
+    TizcordServer* server;
+    bool is_admin;
 } TizcordServerMembership;
 
 typedef struct {
-    char id[UUID_LEN];
+    uint64_t id;
     int socket_fd;
     bool is_authenticated;
     char username[MAX_NAME_LEN];
-    TizcordServerMembership tizcord_membership[MAX_SERVERS];
-    int active_tizcord_server;
+    TizcordServerMembership membership[MAX_SERVERS]; 
+    int joined_server_count;
+    int current_server_index;
     struct ServerContext* ctx; // Added pointer to parent context
 } ClientNode;
 
@@ -65,20 +66,5 @@ void run_server_loop(ServerContext* ctx);
 /* handle connections */
 void handle_new_connection(ServerContext* ctx);
 void handle_client_message(ServerContext* ctx, int client_index);
-
-/* channel */
-int find_or_create_channel(ServerContext* ctx, const char* name);
-void channel_broadcast(ServerContext* ctx, const char* channel_id, const char* msg, int len, int sender_fd);
-
-/* tizcord server */
-void find_or_create_tizcord_server(ServerContext* ctx, const char* server_name);
-
-/* user operations */
-void update_user_status(ServerContext* ctx, int client_index, UserStatus new_status);
-void send_private_message(ServerContext* ctx, int sender_index, const char* recipient_username,
-                          const char* msg, int len);
-
-/* safe send */
-int safe_send(int fd, const char* msg, int len);
 
 #endif
