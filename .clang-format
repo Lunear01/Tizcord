@@ -1,0 +1,30 @@
+---
+# Start with the official Google base style
+
+BasedOnStyle: Google
+
+# Core Google settings (2-space indents, 80 char limit)
+IndentWidth: 2
+ColumnLimit: 80
+UseTab: Never
+
+# Language standard
+Standard: c++20
+
+# Alignment preferences
+PointerAlignment: Left
+DerivePointerAlignment: false
+AlignAfterOpenBracket: Align
+
+# Inclusion handling
+SortIncludes: true
+IncludeBlocks: Regroup
+
+# Bracing (Google style keeps braces on the same line)
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+
+# Clean up whitespace
+SpacesBeforeTrailingComments: 2
+...
