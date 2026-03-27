@@ -73,8 +73,8 @@ void create_server(const char *server_name) {
     
     TizcordPacket packet = create_base_packet(MSG_SERVER);
     
-    // Assuming ServerPayload has a server_name field
-    // strncpy(packet.payload.server.server_name, server_name, 31);
+    packet.payload.server.action = SERVER_CREATE;
+    strncpy(packet.payload.server.server_name, server_name, sizeof(packet.payload.server.server_name) - 1);
 
     printf("[Client] Sending request to create server: %s\n", server_name);
     write(client_socket, &packet, sizeof(TizcordPacket));
@@ -85,9 +85,9 @@ void leave_server(int server_id) {
 
     TizcordPacket packet = create_base_packet(MSG_SERVER);
     
-    // Assuming ServerPayload has a server_id field
-    // packet.payload.server.server_id = server_id;
-    
+    packet.payload.server.action = SERVER_LEAVE;
+    packet.payload.server.server_id = server_id;
+
     printf("[Client] Sending request to leave server ID: %d\n", server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
@@ -100,6 +100,9 @@ void create_channel(int server_id, const char *channel_name) {
     // Assuming ChannelPayload has fields for this
     // packet.payload.channel.server_id = server_id;
     // strncpy(packet.payload.channel.channel_name, channel_name, 31);
+    packet.payload.channel.action = CHANNEL_CREATE;
+    packet.payload.channel.server_id = server_id;
+    strncpy(packet.payload.channel.channel_name, channel_name, sizeof(packet.payload.channel.channel_name) - 1);
 
     printf("[Client] Sending request to create channel '%s' in server %d\n", channel_name, server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
@@ -110,8 +113,8 @@ void delete_channel(int channel_id) {
 
     TizcordPacket packet = create_base_packet(MSG_CHANNEL);
     
-    // Assuming ChannelPayload has a channel_id field
-    // packet.payload.channel.channel_id = channel_id;
+    packet.payload.channel.action = CHANNEL_DELETE;
+    packet.payload.channel.channel_id = channel_id;
 
     printf("[Client] Sending request to delete channel ID: %d\n", channel_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
@@ -122,7 +125,7 @@ void send_friend_request(const char *target_username) {
 
     TizcordPacket packet = create_base_packet(MSG_DM);
     
-    // Use the receiver field from TizcordPacket for routing
+    packet.payload.dm.action = DM_FRIEND_REQUEST;
     strncpy(packet.receiver, target_username, sizeof(packet.receiver) - 1);
 
     printf("[Client] Sending friend request to %s...\n", target_username);
@@ -136,8 +139,8 @@ void accept_friend_request(const char *target_username) {
     
     strncpy(packet.receiver, target_username, sizeof(packet.receiver) - 1);
     
-    // In a real implementation, you might need a flag in DMPayload 
-    // to differentiate an "accept" from a standard "request" or "message"
+    packet.payload.dm.action = DM_FRIEND_ACCEPT;
+    strncpy(packet.receiver, target_username, sizeof(packet.receiver) - 1);
 
     printf("[Client] Accepting friend request from %s...\n", target_username);
     write(client_socket, &packet, sizeof(TizcordPacket));

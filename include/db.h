@@ -29,3 +29,6 @@ typedef void (*MessageCallback)(const char* username, const char* content, const
 
 int db_load_history(DbContext* db, const char* channel_id, int limit, MessageCallback msg_cb,
                     void* userdata);
+
+int db_edit_message(DbContext* db, const char* message_id, const char* new_content);
+int db_delete_message(DbContext* db, const char* message_id);

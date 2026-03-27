@@ -65,9 +65,30 @@ void *client_handler(void *arg) {
     
     // Read packets in a loop
     while (read(client->socket_fd, &packet, sizeof(TizcordPacket)) > 0) {
-        if (packet.type == MSG_LOGIN) {
-            handle_auth_packet(client->ctx, client->socket_fd, &packet);
-        }
+        switch (packet.type) {
+            case MSG_LOGIN:
+                handle_auth_packet(client->ctx, client->socket_fd, &packet);
+                break;
+                
+            case MSG_DM:
+            case MSG_CHANNEL:
+                // Route chat and channel messages to the chat implementation
+                handle_chat_packet(client->ctx, &packet, client->socket_fd);
+                break;
+                
+            case MSG_SERVER:
+                printf("[Server] Received SERVER packet (Routing not yet implemented)\n");
+                // TODO: Route to server/channel creation logic
+                break;
+                
+            case MSG_STATUS:
+                printf("[Server] Received STATUS packet (Routing not yet implemented)\n");
+                // TODO: Update client array status and broadcast to friends
+                break;
+                
+            default:
+                printf("[Server] Unknown packet type received!\n");
+                break;
     }
     
     close(client->socket_fd);

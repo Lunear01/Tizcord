@@ -80,3 +80,13 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
     }
     return 0;
 }
+
+//TODO: Implement:
+// db_edit_message
+// db_delete_message 
+int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
+    //TODO
+}
+int db_delete_message(DbContext* db, const char* message_id){
+    //TODO
+}

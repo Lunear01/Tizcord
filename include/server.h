@@ -14,6 +14,7 @@
 #include <stdbool.h>
 
 #include "db.h"
+#include "protocol.h"
 
 typedef struct {
     char id[UUID_LEN];
@@ -55,7 +56,6 @@ typedef struct ServerContext { // Named the struct properly for pointer access
     DbContext* db;
 } ServerContext;
 
-typedef enum { STATUS_ONLINE, STATUS_OFFLINE, STATUS_AWAY } UserStatus;
 
 /* Server lifecycle */
 void init_server_context(ServerContext* ctx);
@@ -68,7 +68,7 @@ void handle_client_message(ServerContext* ctx, int client_index);
 
 /* channel */
 int find_or_create_channel(ServerContext* ctx, const char* name);
-void channel_broadcast(ServerContext* ctx, int chan_idx, const char* msg, int len, int sender_fd);
+void channel_broadcast(ServerContext* ctx, const char* channel_id, const char* msg, int len, int sender_fd);
 
 /* tizcord server */
 void find_or_create_tizcord_server(ServerContext* ctx, const char* server_name);
