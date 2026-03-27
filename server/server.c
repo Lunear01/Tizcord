@@ -1,7 +1,6 @@
 #include "../include/server.h"
 #include "../include/protocol.h" 
 #include "../include/auth.h"
-#include "../include/db.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,18 +9,17 @@
 #include <pthread.h>
 
 // Reset everything in the server
-void init_server_context(ServerContext *ctx) {
+void init_server_context(ServerContext *ctx, DbContext* db) {
     ctx->client_count = 0;
     ctx->tizcord_server_count = 0;
     memset(ctx->clients, 0, sizeof(ctx->clients));
     memset(ctx->tizcord_servers, 0, sizeof(ctx->tizcord_servers));
     ctx->tizcord_server_count = 0;
-    ctx->db = db_connect("tizcord.db");
+    ctx->db = db;
 }
 
 // Start server at a port ready to listen
 int start_server(int port) {
-    
     // Initialize socket for listening
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd == -1) {
