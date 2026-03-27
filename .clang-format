@@ -1,30 +1,31 @@
 ---
-# Start with the official Google base style
-
+# Base style for C development
 BasedOnStyle: Google
 
-# Core Google settings (2-space indents, 80 char limit)
-IndentWidth: 2
+# Language-specific settings
+Language: Cpp
+Standard: c11
+
+# Core layout (Google defaults to 2, many C devs prefer 4)
 ColumnLimit: 80
-UseTab: Never
+UseTab: Always
+TabWidth: 4
 
-# Language standard
-Standard: c++20
+# Bracing style (Keep it on the same line for C11/Google)
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
 
-# Alignment preferences
-PointerAlignment: Left
-DerivePointerAlignment: false
+# Pointer alignment (int* p vs int *p)
+# Google prefers 'Right' for C (int *p), but 'Left' is also common.
+PointerAlignment: Right
+
+# C-specific formatting
 AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: true
+AlignConsecutiveAssignments: false
+AlignEscapedNewlines: Right
 
-# Inclusion handling
+# Sorting includes (keeps your headers tidy)
 SortIncludes: true
 IncludeBlocks: Regroup
-
-# Bracing (Google style keeps braces on the same line)
-AllowShortFunctionsOnASingleLine: All
-AllowShortIfStatementsOnASingleLine: WithoutElse
-AllowShortLoopsOnASingleLine: true
-
-# Clean up whitespace
-SpacesBeforeTrailingComments: 2
 ...
