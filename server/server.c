@@ -14,7 +14,6 @@
 // Reset everything in the server
 void init_server_context(ServerContext *ctx, DbContext* db) {
     ctx->client_count = 0;
-    ctx->tizcord_server_count = 0;
     memset(ctx->clients, 0, sizeof(ctx->clients));
     memset(ctx->tizcord_servers, 0, sizeof(ctx->tizcord_servers));
     ctx->tizcord_server_count = 0;
@@ -62,9 +61,13 @@ int start_server(int port) {
     return socket_fd;
 }
 
+<<<<<<< Updated upstream
 void run_server_loop(ServerContext *ctx) {
     int server_socket = ctx->server_fd;
     
+=======
+void run_server_loop(ServerContext *ctx, int server_socket) {
+>>>>>>> Stashed changes
     fd_set master_set, read_set;
     FD_ZERO(&master_set);
     FD_SET(server_socket, &master_set);
@@ -72,15 +75,42 @@ void run_server_loop(ServerContext *ctx) {
 
     while (1) {
         read_set = master_set;
+<<<<<<< Updated upstream
+=======
+        
+>>>>>>> Stashed changes
         if (select(max_fd + 1, &read_set, NULL, NULL, NULL) == -1) {
             perror("select");
             exit(EXIT_FAILURE);
         }
 
+        // handle new connection
+        if (FD_ISSET(server_socket, &read_set)) {
+            handle_new_connection(ctx, server_socket);
+        }
+
+        // loop through each client
         for (int i = 0; i < ctx->client_count; i++) {
             int client_fd = ctx->clients[i].socket_fd;
-            if (FD_ISSET(client_fd, &read_set)) {
-                // Handle client communication in a separate thread
+            if (client_fd > 0 && FD_ISSET(client_fd, &read_set)) {
+                TizcordPacket packet;
+                ssize_t bytes_received = read(client_fd, &packet, sizeof(TizcordPacket));
+                if (bytes_received <= 0) {
+                    // Client disconnected or error
+                    printf("Client on fd %d disconnected.\n", client_fd);
+                    close(client_fd);
+                    FD_CLR(client_fd, &master_set);
+                    
+                    // remove client
+                    for (int j = i; j < ctx->client_count - 1; j++) {
+                        ctx->clients[j] = ctx->clients[j + 1];
+                    }
+                    ctx->client_count--;
+                    i--; 
+                } else {
+                    // Process the received packet
+                    process_client_packet(ctx, &ctx->clients[i], &packet);
+                }
             }
         }
     }
@@ -118,56 +148,36 @@ void handle_new_connection(ServerContext *ctx) {
 		return;
 	}
 
-	ClientNode *client = malloc(sizeof(ClientNode));
-    if (!client) {
-        perror("malloc");
-        close(client_fd);
-        return;
-    }
-
+	ClientNode *client = &ctx->clients[ctx->client_count];
     memset(client, 0, sizeof(ClientNode));
     client->socket_fd = client_fd;
     client->ctx = ctx;
-
     ctx->clients[ctx->client_count++] = *client;
 }
 
 // Handle individual client communication
-void *client_handler(void *arg) {
-    ClientNode *client = (ClientNode *)arg;
-    TizcordPacket packet;
-    
-    // Read packets in a loop
-    while (read(client->socket_fd, &packet, sizeof(TizcordPacket)) > 0) {
-        switch (packet.type) {
-            case MSG_LOGIN:
-                handle_auth_packet(client->ctx, client->socket_fd, &packet);
-                break;
-                
-            case MSG_DM:
-            case MSG_CHANNEL:
-                // Route chat and channel messages to the chat implementation
-                handle_chat_packet(client->ctx, &packet, client->socket_fd);
-                break;
-                
-            case MSG_SERVER:
-                printf("[Server] Received SERVER packet (Routing not yet implemented)\n");
-                // TODO: Route to server/channel creation logic
-                break;
-                
-            case MSG_STATUS:
-                printf("[Server] Received STATUS packet (Routing not yet implemented)\n");
-                // TODO: Update client array status and broadcast to friends
-                break;
-                
-            default:
-                printf("[Server] Unknown packet type received!\n");
-                break;
-        }
-        
-        close(client->socket_fd);
-        printf("Client disconnected.\n");
-        
+void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet) {
+    switch (packet->type) {
+        case AUTH:
+            handle_auth_packet(ctx, client->socket_fd, packet);
+            break;
+        case DM:
+            printf("[Server] Received DM packet\n");
+            break;
+        case SERVER:
+            printf("[Server] Received SERVER packet\n");
+            break;
+        case CHANNEL:
+            printf("[Server] Received CHANNEL packet\n");
+            break;
+        case SOCIAL :
+            printf("[Server] Received SOCIAL packet\n");
+            break;
+        case STATUS:
+            printf("[Server] Received STATUS packet\n");
+            break;
+        default:
+            printf("[Server] Unknown packet type %d received!\n", packet->type);
+            break;
     }
-    return NULL;
 }

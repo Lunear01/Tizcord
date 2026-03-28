@@ -1,5 +1,6 @@
 // This is the file that both server and client will include
 // Prevents segfaults when packets being sent/received
+#include <sqlite3.h>
 
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
@@ -7,11 +8,12 @@
 #include <sqlite3.h>
 
 typedef enum {
-    MSG_LOGIN,
-    MSG_DM,
-    MSG_SERVER,
-    MSG_CHANNEL,
-    MSG_STATUS
+    AUTH,
+    DM,
+    SERVER,
+    CHANNEL,
+    SOCIAL,
+    STATUS
 } PacketType;
 
 typedef enum { 
@@ -31,26 +33,39 @@ typedef enum {
 
 typedef enum {
     DM_MESSAGE,
-    DM_FRIEND_REQUEST,
-    DM_FRIEND_ACCEPT,
     DM_MESSAGE_EDIT,
-    DM_MESSAGE_DELETE
+    DM_MESSAGE_DELETE,
 } DMAction;
 
 typedef enum {
     SERVER_CREATE,
+    SERVER_DELETE, // admin only
     SERVER_JOIN,
-    SERVER_LEAVE
+    SERVER_LEAVE,
+    SERVER_LIST_SERVERS,
+    SERVER_LIST_CHANNELS,
+    SERVER_LIST_MEMBERS,
+    SERVER_LIST_JOINED
 } ServerAction;
 
 typedef enum {
-    CHANNEL_CREATE,
-    CHANNEL_DELETE,
+    CHANNEL_CREATE, // admin only
+    CHANNEL_DELETE, // admin only
     CHANNEL_JOIN,
     CHANNEL_MESSAGE,
     CHANNEL_MESSAGE_EDIT,
     CHANNEL_MESSAGE_DELETE 
 } ChannelAction;
+
+typedef enum {
+    SOCIAL_FRIEND_REQUEST,
+    SOCIAL_FRIEND_ACCEPT,
+    SOCIAL_FRIEND_REJECT,
+    SOCIAL_FRIEND_REMOVE,
+    SOCIAL_LIST_FRIENDS,
+    SOCIAL_CHECK_ONLINE,
+    SOCIAL_UPDATE_STATUS
+} SocialAction;
 
 // --- Payloads ---
 
@@ -91,7 +106,7 @@ typedef struct {
 
 typedef struct {
     PacketType type;
-    char sender[32];
+    sqlite3_int64 sender_id;
     union {
         AuthPayload auth;
         DMPayload dm;
@@ -100,7 +115,6 @@ typedef struct {
         StatusPayload status;
     } payload; 
     long timestamp;
-    char receiver[32];
 } TizcordPacket;
 
 #endif

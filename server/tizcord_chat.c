@@ -1,3 +1,4 @@
+/* chat methods */
 #include "../include/tizcord_chat.h"
 #include "../include/server.h"
 #include "../shared/protocol.h"

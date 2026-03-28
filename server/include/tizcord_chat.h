@@ -6,6 +6,5 @@
 
 void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd);
 void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd);
-void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd);
 
 #endif

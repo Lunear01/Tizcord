@@ -11,20 +11,20 @@
 #define BUFFER_SIZE 1024
 
 #include <stdbool.h>
-#include <stdint.h>
+#include <sqlite3.h>
 
 #include "db.h"
 #include "../../shared/protocol.h"
 
 typedef struct {
-    uint64_t id;
+    sqlite3_int64 id;
     char name[MAX_NAME_LEN];
     int member_fds[MAX_SERVER_MEMBERS];
     int member_count;
 } Channel;
 
 typedef struct {
-    uint64_t id;
+    sqlite3_int64 id;
     char name[MAX_NAME_LEN];
     Channel channels[MAX_CHANNELS];
     int channel_count;
@@ -38,7 +38,7 @@ typedef struct {
 } TizcordServerMembership;
 
 typedef struct {
-    uint64_t id;
+    sqlite3_int64 id;
     int socket_fd;
     bool is_authenticated;
     char username[MAX_NAME_LEN];
@@ -61,10 +61,10 @@ typedef struct ServerContext {
 /* Server lifecycle */
 void init_server_context(ServerContext* ctx, DbContext* db);
 int start_server(int port);
-void run_server_loop(ServerContext* ctx);
+void run_server_loop(ServerContext* ctx, int server_socket);
 
 /* handle connections */
-void handle_new_connection(ServerContext* ctx);
+void handle_new_connection(ServerContext* ctx, int server_socket);
 void *client_handler(void* arg);
 
 #endif
