@@ -7,6 +7,7 @@
 
 #include "../include/ui.h"
 #include "../include/client.h"
+#include <pthread.h>
 
 extern pthread_mutex_t ui_mutex;
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -999,7 +1000,7 @@ void ui_receive_channel_message(TizcordPacket *packet) {
             UIChannel *c = &sv->channels[c_idx];
             if (c->msg_count < MAX_MESSAGES) {
                 Message *m = &c->messages[c->msg_count++];
-                strncpy(m->sender, packet->sender, MAX_NAME_LEN - 1);
+                snprintf(m->sender, MAX_NAME_LEN, "%lld", (long long)packet->sender_id);
                 strncpy(m->body, packet->payload.channel.message, MAX_MSG_LEN - 1);
                 m->ts = packet->timestamp;
             }

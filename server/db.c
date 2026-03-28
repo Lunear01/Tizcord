@@ -27,7 +27,7 @@ DbContext* db_connect(const char* conninfo) {
         free(db);
         return NULL;
     }
-    sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+    sqlite3_exec(db->conn, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
     
     return db;
 }

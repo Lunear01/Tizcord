@@ -36,6 +36,6 @@ int main(int argc, char* argv[]) {
     run_server_loop(&ctx);
 
     db_disconnect(ctx.db);
-    fprinf(stderr, "Server shutting down.\n");
+    fprintf(stderr, "Server shutting down.\n");
     return 0;
 }

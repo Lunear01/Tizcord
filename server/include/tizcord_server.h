@@ -1,4 +1,5 @@
 /* Server operations */
+#include <stdint.h>
 #include "server.h"
 
 void list_tizcord_servers(ServerContext* ctx, const char* server_name);
