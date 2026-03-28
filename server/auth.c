@@ -42,11 +42,11 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
         return;
     }
     
-    char user_id[37];
-    int rc = db_create_user(ctx->db, packet->payload.auth.username, hash, user_id);
+    sqlite3_int64 user_id;
+    int rc = db_create_user(ctx->db, packet->payload.auth.username, hash, &user_id);
     
     if (rc == 0) {
-        printf("[Server] Successfully registered user! UUID: %s\n", user_id);
+        printf("[Server] Successfully registered user! ID: %lld\n", (long long)user_id);
         reply.payload.auth.status_code = 0;
     } else {
         printf("[Server] Failed to register user (Username likely already exists!).\n");
