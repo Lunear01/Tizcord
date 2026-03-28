@@ -394,7 +394,7 @@ static void draw_logo(int start_row, int cols, int pair)
 
 void draw_auth(int rows, int cols, int is_signup)
 {
-    clear();
+    erase();
 
     /* Box dimensions – wide enough for the field label + content. */
     int bw = 48; /* must be >= field width (38) + 2*margin(3) + 2*border(1) = 45 */
@@ -597,7 +597,7 @@ int server_cursor = 0; /* highlighted row */
 
 void draw_server_list(int rows, int cols)
 {
-    clear();
+    erase();
 
     /* ── Top bar ── */
     attron(COLOR_PAIR(10) | A_BOLD);
@@ -733,7 +733,7 @@ int chat_input_len = 0;
 
 void draw_chat(int rows, int cols)
 {
-    clear();
+    erase();
     UIServer *sv = &servers[active_server];
 
     /* ── Sidebar background (columns 0..SIDEBAR_W-1) ── */
