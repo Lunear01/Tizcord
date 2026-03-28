@@ -4,6 +4,7 @@
 #include "../../shared/protocol.h"
 
 void start_ui(void);
+void ui_handle_auth_response(TizcordPacket *packet);
 void ui_receive_channel_message(TizcordPacket *packet);
 void ui_edit_channel_message(TizcordPacket *packet);
 void ui_delete_channel_message(TizcordPacket *packet);

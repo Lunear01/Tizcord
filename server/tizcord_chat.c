@@ -9,8 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sqlite3.h>
 
-void channel_broadcast(ServerContext *ctx, void *channel_id, const char *packet, size_t packet_size, int sender_fd) {
+void channel_broadcast(ServerContext *ctx, sqlite3_int64 channel_id, const char *packet, size_t packet_size, int sender_fd) {
     (void)channel_id; // Will be used later to filter by specific channels
     
     for (int i = 0; i < ctx->client_count; i++) {
@@ -61,7 +62,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
     } 
     else if (packet->payload.dm.action == DM_MESSAGE_EDIT) {
-        printf("[Chat] Edit DM requested for message ID: %s\n", packet->payload.dm.message_id);
+        printf("[Chat] Edit DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
         
         if (ctx->db != NULL) {
             db_edit_message(ctx->db, packet->payload.dm.message_id, packet->payload.dm.message);
@@ -76,7 +77,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
     } 
     else if (packet->payload.dm.action == DM_MESSAGE_DELETE) {
-        printf("[Chat] Delete DM requested for message ID: %s\n", packet->payload.dm.message_id);
+        printf("[Chat] Delete DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
         
         if (ctx->db != NULL) {
             db_delete_message(ctx->db, packet->payload.dm.message_id);
@@ -104,12 +105,8 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
     }
 
     if (packet->payload.channel.action == CHANNEL_MESSAGE) {
-        // Safely extract the ID
-        int safe_chan_id = (int)(intptr_t)packet->payload.channel.channel_id;
-
-        // FIXED: Using safe_chan_id here instead of the raw pointer
-        printf("[Chat] Broadcast request from %s to Channel ID: %d\n", 
-               packet->sender, safe_chan_id);
+        printf("[Chat] Broadcast request from %s to Channel ID: %lld\n", 
+               packet->sender, (long long)packet->payload.channel.channel_id);
         
         // Broadcast the entire packet
         channel_broadcast(ctx, 
@@ -119,21 +116,15 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                           sender_fd);
         
         if (ctx->db != NULL && sender_node != NULL) {
-            //Convert numeric IDs into strings for the database
-            char chan_id_str[32];
-            char user_id_str[64];
-            
-            snprintf(chan_id_str, sizeof(chan_id_str), "%d", (int)packet->payload.channel.channel_id);
-            snprintf(user_id_str, sizeof(user_id_str), "%llu", (unsigned long long)sender_node->id);
-
+            // No more string conversions! Pass the native 64-bit integers straight through.
             db_save_message(ctx->db, 
-                            chan_id_str, 
-                            user_id_str, 
+                            packet->payload.channel.channel_id, 
+                            (sqlite3_int64)sender_node->id, 
                             packet->payload.channel.message);
         }
     }
     else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
-        printf("[Chat] Edit channel message requested for ID: %s\n", packet->payload.channel.message_id);
+        printf("[Chat] Edit channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
         
         if (ctx->db != NULL) {
             db_edit_message(ctx->db, packet->payload.channel.message_id, packet->payload.channel.message);
@@ -147,7 +138,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                           sender_fd);
     } 
     else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
-        printf("[Chat] Delete channel message requested for ID: %s\n", packet->payload.channel.message_id);
+        printf("[Chat] Delete channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
         
         if (ctx->db != NULL) {
             db_delete_message(ctx->db, packet->payload.channel.message_id);

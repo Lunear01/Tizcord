@@ -1,6 +1,7 @@
 #include "../shared/protocol.h"
 #include "include/server.h"
 #include "include/auth.h"
+#include "include/tizcord_chat.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,15 +62,16 @@ int start_server(int port) {
     return socket_fd;
 }
 
-void run_server_loop(ServerContext *ctx, int server_socket) {
-    fd_set master_set, read_set, write_set;
+void run_server_loop(ServerContext *ctx) {
+    int server_socket = ctx->server_fd;
+    
+    fd_set master_set, read_set;
     FD_ZERO(&master_set);
     FD_SET(server_socket, &master_set);
     int max_fd = server_socket;
 
     while (1) {
         read_set = master_set;
-        write_set = master_set;
         if (select(max_fd + 1, &read_set, NULL, NULL, NULL) == -1) {
             perror("select");
             exit(EXIT_FAILURE);
@@ -84,9 +86,28 @@ void run_server_loop(ServerContext *ctx, int server_socket) {
     }
 }
 
+// Accept a new connection and return the client socket fd
+int accept_connection(int listenfd) {
+    struct sockaddr_in peer;
+    unsigned int peer_len = sizeof(peer);
+    peer.sin_family = AF_INET;
+
+    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
+    if (client_socket < 0) {
+        perror("accept");
+        return -1;
+    } else {
+        fprintf(stderr,
+            "New connection accepted from %s:%d\n",
+            inet_ntoa(peer.sin_addr),
+            ntohs(peer.sin_port));
+        return client_socket;
+    }
+}
+
 // Handle new connections
-void handle_new_connection(ServerContext *ctx, int server_socket) {
-    int client_fd = accept_connection(server_socket);
+void handle_new_connection(ServerContext *ctx) {
+    int client_fd = accept_connection(ctx->server_fd);
     if (client_fd < 0) {
         return; // accept failed, just return to the main loop
     }
@@ -109,25 +130,6 @@ void handle_new_connection(ServerContext *ctx, int server_socket) {
     client->ctx = ctx;
 
     ctx->clients[ctx->client_count++] = *client;
-}
-
-// Accept a new connection and return the client socket fd
-int accept_connection(int listenfd) {
-    struct sockaddr_in peer;
-    unsigned int peer_len = sizeof(peer);
-    peer.sin_family = AF_INET;
-
-    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
-    if (client_socket < 0) {
-        perror("accept");
-        return -1;
-    } else {
-        fprintf(stderr,
-            "New connection accepted from %s:%d\n",
-            inet_ntoa(peer.sin_addr),
-            ntohs(peer.sin_port));
-        return client_socket;
-    }
 }
 
 // Handle individual client communication
@@ -165,6 +167,7 @@ void *client_handler(void *arg) {
         
         close(client->socket_fd);
         printf("Client disconnected.\n");
-        return NULL;
+        
     }
+    return NULL;
 }

@@ -551,22 +551,12 @@ void handle_auth_input(int ch, int is_signup)
 
         if (is_signup)
         {
-            int status = send_register(auth.username, auth.password);
-            
-            if (status == 0) {
-                // Network Register succeeded! Proceed into the mock local state to trick the UI flow
-                strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
-                strncpy(users[user_count].password, auth.password, MAX_PASS_LEN - 1);
-                users[user_count].server_id = -1;
-                current_user = user_count++;
-                current_screen = SCREEN_SERVERS;
-                strcpy(auth.success, "Registration Successful!");
-            } else {
-                // Server rejected or network died
-                strcpy(auth.error, "Username taken or Network Error.");
-                return;
-            }
-        }
+            // Just send the packet and set a loading message!
+            send_register(auth.username, auth.password);
+            strcpy(auth.success, "Waiting for server...");
+            auth.error[0] = '\0';
+            return; // Break out immediately, the listener thread will do the rest
+        } 
         else
         {
             int found = -1;
@@ -589,8 +579,9 @@ void handle_auth_input(int ch, int is_signup)
                 active_channel = 0;
                 current_screen = SCREEN_CHAT;
             }
-            else
+            else {
                 current_screen = SCREEN_SERVERS;
+            }
         }
         auth.username[0] = '\0';
         auth.password[0] = '\0';
@@ -614,6 +605,7 @@ void handle_auth_input(int ch, int is_signup)
         }
     }
 }
+
 
 // ─── Screen: SERVER LIST ─────────────────────────────────────────────────────
 
@@ -984,6 +976,32 @@ void handle_chat_input(int ch)
 }
 
 // ─── Network Integration (Thread-Safe Callbacks) ─────────────────────────────
+
+void ui_handle_auth_response(TizcordPacket *packet) {
+    if (packet->payload.auth.action == AUTH_REGISTER) {
+        if (packet->payload.auth.status_code == 0) {
+            // Network Register succeeded! 
+            // Proceed into the mock local state to trick the UI flow
+            strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
+            strncpy(users[user_count].password, auth.password, MAX_PASS_LEN - 1);
+            users[user_count].server_id = -1;
+            current_user = user_count++;
+            
+            // Clear inputs and transition screens
+            auth.username[0] = '\0';
+            auth.password[0] = '\0';
+            auth.field = 0;
+            current_screen = SCREEN_SERVERS;
+            
+            strcpy(auth.success, "Registration Successful!");
+            auth.error[0] = '\0';
+        } else {
+            // Server rejected or network died
+            strcpy(auth.error, "Username taken or Network Error.");
+            auth.success[0] = '\0';
+        }
+    }
+}
 
 void ui_receive_channel_message(TizcordPacket *packet) {
     // For now, we'll map the incoming message directly to the active server/channel

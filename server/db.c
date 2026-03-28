@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 struct DbContext {
     sqlite3* conn;
 };
@@ -39,7 +40,7 @@ void db_disconnect(DbContext* db) {
     }
 }
 
-int db_create_user(DbContext* db, const char* username, const char* password_hash, char* user_id_out) {
+int db_create_user(DbContext* db, const char* username, const char* password_hash, sqlite3_int64* user_id_out) {
 
     // Dummy email since email is NOT NULL UNIQUE but we skip it for now
     char email[256];
@@ -63,25 +64,74 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
         return db_err(db, "Failed to execute user insert");
     }
 
+    if (user_id_out != NULL) {
+        *user_id_out = sqlite3_last_insert_rowid(db->conn);
+    }
+
     return 0;
 }
 
-//TODO: Implement:
-// db_edit_message
-// db_delete_message 
-// db_save_message
-int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
-    //TODO
-}
-int db_delete_message(DbContext* db, const char* message_id){
-    //TODO
-}
+int db_save_message(DbContext* db, sqlite3_int64 channel_id, sqlite3_int64 user_id, const char* content) {
+    const char* sql = "INSERT INTO messages (channel_id, user_id, content) VALUES (?, ?, ?);";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare message insert");
+    }
 
-int db_save_message(DbContext* db, const char* channel_id, const char* user_id, const char* message) {
-    // Suppress unused variable warnings temporarily 
-    (void)db;
-    (void)channel_id;
-    (void)user_id;
-    (void)message;
+    // Bind the 64-bit integers directly
+    sqlite3_bind_int64(stmt, 1, channel_id);
+    sqlite3_bind_int64(stmt, 2, user_id);
+    sqlite3_bind_text(stmt, 3, content, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute message insert");
+    }
+
     return 0; 
 }
+
+int db_edit_message(DbContext* db, sqlite3_int64 message_id, const char* new_content) {
+    const char* sql = "UPDATE messages SET content = ? WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare message update");
+    }
+
+    sqlite3_bind_text(stmt, 1, new_content, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, message_id);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute message update");
+    }
+
+    return 0;
+}
+
+int db_delete_message(DbContext* db, sqlite3_int64 message_id) {
+    const char* sql = "DELETE FROM messages WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare message delete");
+    }
+
+    sqlite3_bind_int64(stmt, 1, message_id);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute message delete");
+    }
+
+    return 0;
+}
+
