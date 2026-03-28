@@ -8,6 +8,7 @@
 #include "../include/ui.h"
 #include "../include/client.h"
 
+extern pthread_mutex_t ui_mutex;
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 #define MAX_USERS 16
@@ -559,29 +560,11 @@ void handle_auth_input(int ch, int is_signup)
         } 
         else
         {
-            int found = -1;
-            for (int i = 0; i < user_count; i++)
-                if (!strcmp(users[i].username, auth.username) &&
-                    !strcmp(users[i].password, auth.password))
-                {
-                    found = i;
-                    break;
-                }
-            if (found < 0)
-            {
-                strcpy(auth.error, "Invalid username or password.");
-                break;
-            }
-            current_user = found;
-            if (users[current_user].server_id >= 0)
-            {
-                active_server = users[current_user].server_id;
-                active_channel = 0;
-                current_screen = SCREEN_CHAT;
-            }
-            else {
-                current_screen = SCREEN_SERVERS;
-            }
+            // Trigger the network packet
+            send_login(auth.username, auth.password);
+            strcpy(auth.success, "Authenticating...");
+            auth.error[0] = '\0';
+            return; // Break out immediately, let the listener thread catch the reply
         }
         auth.username[0] = '\0';
         auth.password[0] = '\0';
@@ -1080,46 +1063,50 @@ void start_ui(void)
     curs_set(1);
     init_colors();
 
+    // Make getch() return ERR after 100ms if no keys are pressed.
+    // This allows the loop to spin and release the mutex for the network thread
+    timeout(100); 
+
     int rows, cols, ch;
 
     while (1)
     {
+        // Lock the UI before reading terminal size or drawing
+        pthread_mutex_lock(&ui_mutex);
         getmaxyx(stdscr, rows, cols);
 
         switch (current_screen)
         {
-        case SCREEN_LOGIN:
-            draw_auth(rows, cols, 0);
-            break;
-        case SCREEN_SIGNUP:
-            draw_auth(rows, cols, 1);
-            break;
-        case SCREEN_SERVERS:
-            draw_server_list(rows, cols);
-            break;
-        case SCREEN_CHAT:
-            draw_chat(rows, cols);
-            break;
+            case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
+            case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
+            case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+            case SCREEN_CHAT: draw_chat(rows, cols); break;
         }
+        
+        // Unlock the UI immediately after drawing
+        pthread_mutex_unlock(&ui_mutex);
 
+        // Wait for input (blocks for a max of 100ms)
         ch = getch();
-        if (ch == 'q' && current_screen == SCREEN_CHAT)
-            break;
 
-        switch (current_screen)
-        {
-        case SCREEN_LOGIN:
-            handle_auth_input(ch, 0);
-            break;
-        case SCREEN_SIGNUP:
-            handle_auth_input(ch, 1);
-            break;
-        case SCREEN_SERVERS:
-            handle_server_input(ch);
-            break;
-        case SCREEN_CHAT:
-            handle_chat_input(ch);
-            break;
+        // If the user pressed something, lock the UI again to process the state change
+        if (ch != ERR) {
+            pthread_mutex_lock(&ui_mutex);
+            
+            if (ch == 'q' && current_screen == SCREEN_CHAT) {
+                pthread_mutex_unlock(&ui_mutex);
+                break;
+            }
+
+            switch (current_screen)
+            {
+                case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
+                case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
+                case SCREEN_SERVERS: handle_server_input(ch); break;
+                case SCREEN_CHAT: handle_chat_input(ch); break;
+            }
+            
+            pthread_mutex_unlock(&ui_mutex);
         }
     }
 

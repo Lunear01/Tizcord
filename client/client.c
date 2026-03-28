@@ -61,6 +61,19 @@ int send_register(const char *username, const char *password) {
     return -1; // Network failure
 }
 
+int send_login(const char *username, const char *password) {
+    if (client_socket < 0) return -1;
+
+    TizcordPacket packet = create_base_packet(MSG_LOGIN);
+    packet.payload.auth.action = AUTH_LOGIN;
+    strncpy(packet.payload.auth.username, username, sizeof(packet.payload.auth.username) - 1);
+    strncpy(packet.payload.auth.password, password, sizeof(packet.payload.auth.password) - 1);
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+    
+    return 0; 
+}
+
 void create_server(const char *server_name) {
     if (client_socket < 0) return;
     

@@ -4,6 +4,7 @@
 void connect_to_server(const char *ip_address, int port);
 
 int send_register(const char *username, const char *password);
+int send_login(const char *username, const char *password);
 
 void leave_server(int server_id);
 
