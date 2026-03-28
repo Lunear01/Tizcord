@@ -25,7 +25,7 @@ void* server_listener(void* arg) {
         pthread_mutex_lock(&ui_mutex);
         
         switch (packet.type) {
-            case MSG_CHANNEL:
+            case CHANNEL:
                 if (packet.payload.channel.action == CHANNEL_MESSAGE) {
                     // Inject the incoming channel message into the UI state
                     ui_receive_channel_message(&packet);
@@ -38,19 +38,19 @@ void* server_listener(void* arg) {
                 }
                 break;
                 
-            case MSG_DM:
+            case DM:
                 if (packet.payload.dm.action == DM_MESSAGE) {
                     // Route the DM to the UI
                     ui_receive_dm_message(&packet);
                 }
                 break;
                 
-            case MSG_SERVER:
+            case SERVER:
                 // Handle new server creation broadcasts, joins, etc.
                 ui_update_server_state(&packet);
                 break;
                 
-            case MSG_LOGIN:
+            case AUTH:
                 // Handle auth responses (if any are sent asynchronously outside the blocking login function)
                 ui_handle_auth_response(&packet);
                 break;
