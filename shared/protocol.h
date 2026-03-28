@@ -28,6 +28,11 @@ typedef enum {
 
 // --- Action Flags ---
 // These help the server know exactly what to do with the packet
+typedef enum {
+    SYSTEM_PING,
+    SYSTEM_PONG,
+    SYSTEM_ERROR
+} SystemAction;
 
 typedef enum {
     AUTH_LOGIN,
@@ -42,14 +47,16 @@ typedef enum {
 } DMAction;
 
 typedef enum {
-    SERVER_CREATE,
-    SERVER_DELETE, // admin only
     SERVER_JOIN,
     SERVER_LEAVE,
-    SERVER_LIST_SERVERS,
+    SERVER_CREATE,
+    SERVER_DELETE,   // admin only
+    SERVER_EDIT,     // admin only
+    SERVER_LIST,
     SERVER_LIST_CHANNELS,
     SERVER_LIST_MEMBERS,
-    SERVER_LIST_JOINED
+    SERVER_LIST_JOINED,
+    SERVER_KICK_MEMBER,  // admin only 
 } ServerAction;
 
 typedef enum {
@@ -58,7 +65,8 @@ typedef enum {
     CHANNEL_JOIN,
     CHANNEL_MESSAGE,
     CHANNEL_MESSAGE_EDIT,
-    CHANNEL_MESSAGE_DELETE 
+    CHANNEL_MESSAGE_DELETE, 
+    CHANNEL_HISTORY_REQUEST,
 } ChannelAction;
 
 typedef enum {
