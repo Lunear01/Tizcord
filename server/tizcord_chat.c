@@ -23,6 +23,66 @@ void channel_broadcast(ServerContext *ctx, sqlite3_int64 channel_id, const char 
     }
 }
 
+void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
+    
+    // Helper to find the actual ClientNode of the sender to get their UUID
+    ClientNode *sender_node = NULL;
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].socket_fd == sender_fd) {
+            sender_node = &ctx->clients[i];
+            break;
+        }
+    }
+
+    if (packet->payload.channel.action == CHANNEL_MESSAGE) {
+        printf("[Chat] Broadcast request from %lld to Channel ID: %lld\n", 
+               (long long)packet->sender_id, (long long)packet->payload.channel.channel_id);
+        
+        // Broadcast the entire packet
+        channel_broadcast(ctx, 
+                          packet->payload.channel.channel_id,
+                          (const char*)packet, 
+                          sizeof(TizcordPacket), 
+                          sender_fd);
+        
+        if (ctx->db != NULL && sender_node != NULL) {
+            // No more string conversions! Pass the native 64-bit integers straight through.
+            db_save_message(ctx->db, 
+                            packet->payload.channel.channel_id, 
+                            (sqlite3_int64)sender_node->id, 
+                            packet->payload.channel.message);
+        }
+    }
+    else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
+        printf("[Chat] Edit channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
+        
+        if (ctx->db != NULL) {
+            db_edit_message(ctx->db, packet->payload.channel.message_id, packet->payload.channel.message);
+        }
+
+        // Broadcast the edit packet to everyone in the channel
+        channel_broadcast(ctx, 
+                          packet->payload.channel.channel_id, 
+                          (const char*)packet, 
+                          sizeof(TizcordPacket), 
+                          sender_fd);
+    } 
+    else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
+        printf("[Chat] Delete channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
+        
+        if (ctx->db != NULL) {
+            db_delete_message(ctx->db, packet->payload.channel.message_id);
+        }
+
+        // Broadcast the delete packet to everyone in the channel
+        channel_broadcast(ctx, 
+                          packet->payload.channel.channel_id, 
+                          (const char*)packet, 
+                          sizeof(TizcordPacket), 
+                          sender_fd);
+    }
+}
+
 void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (!ctx || !packet) return;
 
@@ -92,65 +152,5 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
                 break;
             }
         }
-    }
-}
-
-void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
-    
-    // Helper to find the actual ClientNode of the sender to get their UUID
-    ClientNode *sender_node = NULL;
-    for (int i = 0; i < ctx->client_count; i++) {
-        if (ctx->clients[i].socket_fd == sender_fd) {
-            sender_node = &ctx->clients[i];
-            break;
-        }
-    }
-
-    if (packet->payload.channel.action == CHANNEL_MESSAGE) {
-        printf("[Chat] Broadcast request from %lld to Channel ID: %lld\n", 
-               (long long)packet->sender_id, (long long)packet->payload.channel.channel_id);
-        
-        // Broadcast the entire packet
-        channel_broadcast(ctx, 
-                          packet->payload.channel.channel_id,
-                          (const char*)packet, 
-                          sizeof(TizcordPacket), 
-                          sender_fd);
-        
-        if (ctx->db != NULL && sender_node != NULL) {
-            // No more string conversions! Pass the native 64-bit integers straight through.
-            db_save_message(ctx->db, 
-                            packet->payload.channel.channel_id, 
-                            (sqlite3_int64)sender_node->id, 
-                            packet->payload.channel.message);
-        }
-    }
-    else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
-        printf("[Chat] Edit channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
-        
-        if (ctx->db != NULL) {
-            db_edit_message(ctx->db, packet->payload.channel.message_id, packet->payload.channel.message);
-        }
-
-        // Broadcast the edit packet to everyone in the channel
-        channel_broadcast(ctx, 
-                          packet->payload.channel.channel_id, 
-                          (const char*)packet, 
-                          sizeof(TizcordPacket), 
-                          sender_fd);
-    } 
-    else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
-        printf("[Chat] Delete channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
-        
-        if (ctx->db != NULL) {
-            db_delete_message(ctx->db, packet->payload.channel.message_id);
-        }
-
-        // Broadcast the delete packet to everyone in the channel
-        channel_broadcast(ctx, 
-                          packet->payload.channel.channel_id, 
-                          (const char*)packet, 
-                          sizeof(TizcordPacket), 
-                          sender_fd);
     }
 }
