@@ -4,8 +4,6 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <sqlite3.h>
-
 typedef enum {
     MSG_LOGIN,
     MSG_DM,
@@ -64,24 +62,24 @@ typedef struct {
 typedef struct {
     DMAction action;
     int status_code;
-    sqlite3_int64 message_id;
+    char message_id[37];
     char message[512]; // The actual text content
 } DMPayload;
 
 typedef struct {
     ServerAction action;
-    sqlite3_int64 server_id;
+    int server_id[37];
     int status_code;
     char server_name[32];
 } ServerPayload;
 
 typedef struct {
     ChannelAction action;
-    sqlite3_int64 server_id;
+    int server_id[37];
     int status_code;
-    sqlite3_int64 channel_id;
+    int channel_id[37];
     char channel_name[32];
-    sqlite3_int64 message_id;
+    char message_id[37];
     char message[512];
 } ChannelPayload;
 
