@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     }
 
     ServerContext ctx;
-    init_server_context(&ctx, &db);
+    init_server_context(&ctx, db);
 
     ctx.server_fd = start_server(port);
     run_server_loop(&ctx);

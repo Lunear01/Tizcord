@@ -1,12 +1,14 @@
-#include "../include/server.h"
-#include "../include/protocol.h" 
-#include "../include/auth.h"
+#include "../shared/protocol.h"
+#include "include/server.h"
+#include "include/auth.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <pthread.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 
 // Reset everything in the server
 void init_server_context(ServerContext *ctx, DbContext* db) {
@@ -28,28 +30,30 @@ int start_server(int port) {
     }
 
     // Set socket options to reuse the address/port immediately after restart
-    int opt = 1;
-    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
+    int on = 1;
+    int status = setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR,
+                            (const char *) &on, sizeof(on));
+    if (status == -1) {
+        perror("setsockopt -- REUSEADDR");
     }
 
+    // setup server address structure and bind
     struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    memset(server_addr.sin_zero, 0, sizeof(server_addr.sin_zero));
 
-    if (bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+    // Bind socket to address
+    if (bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(struct sockaddr_in)) == -1) {
         perror("bind");
         close(socket_fd);
         exit(EXIT_FAILURE);
     }
-    
+
+    // Set up a queue in the kernel to hold pending connections. 
     if (listen(socket_fd, MAX_CLIENTS) == -1) {
         perror("listen");
-        close(socket_fd);
         exit(EXIT_FAILURE);
     }
     
@@ -57,6 +61,74 @@ int start_server(int port) {
     return socket_fd;
 }
 
+void run_server_loop(ServerContext *ctx, int server_socket) {
+    fd_set master_set, read_set, write_set;
+    FD_ZERO(&master_set);
+    FD_SET(server_socket, &master_set);
+    int max_fd = server_socket;
+
+    while (1) {
+        read_set = master_set;
+        write_set = master_set;
+        if (select(max_fd + 1, &read_set, NULL, NULL, NULL) == -1) {
+            perror("select");
+            exit(EXIT_FAILURE);
+        }
+
+        for (int i = 0; i < ctx->client_count; i++) {
+            int client_fd = ctx->clients[i].socket_fd;
+            if (FD_ISSET(client_fd, &read_set)) {
+                // Handle client communication in a separate thread
+            }
+        }
+    }
+}
+
+// Handle new connections
+void handle_new_connection(ServerContext *ctx, int server_socket) {
+    int client_fd = accept_connection(server_socket);
+    if (client_fd < 0) {
+        return; // accept failed, just return to the main loop
+    }
+	
+	if (ctx->client_count >= MAX_CLIENTS) {
+		printf("Server full! Rejecting incoming connection.\n");
+		close(client_fd);
+		return;
+	}
+
+	ClientNode *client = malloc(sizeof(ClientNode));
+    if (!client) {
+        perror("malloc");
+        close(client_fd);
+        return;
+    }
+
+    memset(client, 0, sizeof(ClientNode));
+    client->socket_fd = client_fd;
+    client->ctx = ctx;
+
+    ctx->clients[ctx->client_count++] = *client;
+}
+
+// Accept a new connection and return the client socket fd
+int accept_connection(int listenfd) {
+    struct sockaddr_in peer;
+    unsigned int peer_len = sizeof(peer);
+    peer.sin_family = AF_INET;
+
+    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
+    if (client_socket < 0) {
+        perror("accept");
+        return -1;
+    } else {
+        fprintf(stderr,
+            "New connection accepted from %s:%d\n",
+            inet_ntoa(peer.sin_addr),
+            ntohs(peer.sin_port));
+        return client_socket;
+    }
+}
 
 // Handle individual client communication
 void *client_handler(void *arg) {
@@ -89,57 +161,10 @@ void *client_handler(void *arg) {
             default:
                 printf("[Server] Unknown packet type received!\n");
                 break;
-    }
-    
-    close(client->socket_fd);
-    printf("Client disconnected.\n");
-    return NULL;
-}
-
-// Handle new connections
-void handle_new_connection(ServerContext *ctx) {
-    int client_fd = accept_connection(ctx->server_fd);
-    if (client_fd < 0) return;
-    
-    if (ctx->client_count >= MAX_CLIENTS) {
-        printf("Server full! Rejecting incoming connection.\n");
-        close(client_fd);
-        return;
-    }
-    
-    // Grab the next available static ClientNode slots
-    ClientNode *client = &ctx->clients[ctx->client_count++];
-    client->socket_fd = client_fd;
-    client->ctx = ctx; 
-    
-    pthread_t tid;
-    pthread_create(&tid, NULL, client_handler, client);
-    pthread_detach(tid);
-}
-
-// Run forever and call handle_new_connection
-void run_server_loop(ServerContext *ctx) {
-    while (1) {
-        handle_new_connection(ctx);
-    }
-}
-
-// TEST CODE FROM LAB 10
-int accept_connection(int listenfd) {
-    struct sockaddr_in peer;
-    unsigned int peer_len = sizeof(peer);
-    peer.sin_family = AF_INET;
-
-    fprintf(stderr, "Waiting for a new connection...\n");
-    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
-    if (client_socket < 0) {
-        perror("accept");
-        return -1;
-    } else {
-        fprintf(stderr,
-            "New connection accepted from %s:%d\n",
-            inet_ntoa(peer.sin_addr),
-            ntohs(peer.sin_port));
-        return client_socket;
+        }
+        
+        close(client->socket_fd);
+        printf("Client disconnected.\n");
+        return NULL;
     }
 }

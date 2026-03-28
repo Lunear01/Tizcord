@@ -14,7 +14,6 @@
 #include <stdint.h>
 
 #include "db.h"
-#include "protocol.h"
 
 typedef struct {
     uint64_t id;
@@ -45,10 +44,10 @@ typedef struct {
     TizcordServerMembership membership[MAX_SERVERS]; 
     int joined_server_count;
     int current_server_index;
-    struct ServerContext* ctx; // Added pointer to parent context
+    struct ServerContext* ctx;
 } ClientNode;
 
-typedef struct ServerContext { // Named the struct properly for pointer access
+typedef struct ServerContext {
     int server_fd;
     int client_count;
     ClientNode clients[MAX_CLIENTS];
@@ -65,6 +64,6 @@ void run_server_loop(ServerContext* ctx);
 
 /* handle connections */
 void handle_new_connection(ServerContext* ctx);
-void handle_client_message(ServerContext* ctx, int client_index);
+void *client_handler(void* arg);
 
 #endif

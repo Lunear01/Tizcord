@@ -1,7 +1,6 @@
 #ifndef AUTH_H
 #define AUTH_H
 
-#include "protocol.h"
 #include "server.h"
 
 // The network packet router

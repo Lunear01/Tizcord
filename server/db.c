@@ -1,5 +1,5 @@
 /* save messages to db */
-#include "../include/db.h"
+#include "include/db.h"
 
 #include <sqlite3.h>
 #include <uuid/uuid.h>
@@ -27,15 +27,12 @@ DbContext* db_connect(const char* conninfo) {
         return NULL;
     }
     
-    // Turn on Foreign Keys
-    sqlite3_exec(db->conn, "PRAGMA foreign_keys = ON;", 0, 0, 0);
-
     return db;
 }
 
 void db_disconnect(DbContext* db) {
     if (db) {
-        fprinf(stderr, "Gracefully closing database connection...\n");
+        fprintf(stderr, "Gracefully closing database connection...\n");
         sqlite3_close(db->conn);
         free(db);
     }
@@ -71,9 +68,9 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
 //TODO: Implement:
 // db_edit_message
 // db_delete_message 
-int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
-    //TODO
-}
-int db_delete_message(DbContext* db, const char* message_id){
-    //TODO
-}
+// int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
+//     //TODO
+// }
+// int db_delete_message(DbContext* db, const char* message_id){
+//     //TODO
+// }
