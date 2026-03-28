@@ -52,6 +52,7 @@ void* server_listener(void* arg) {
                 
             case MSG_LOGIN:
                 // Handle auth responses (if any are sent asynchronously outside the blocking login function)
+                ui_handle_auth_response(&packet);
                 break;
                 
             default:

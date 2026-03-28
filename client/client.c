@@ -58,12 +58,6 @@ int send_register(const char *username, const char *password) {
 
     write(client_socket, &packet, sizeof(TizcordPacket));
     
-    TizcordPacket reply;
-    int n = read(client_socket, &reply, sizeof(TizcordPacket));
-    if (n > 0 && reply.type == MSG_LOGIN && reply.payload.auth.action == AUTH_REGISTER) {
-        return reply.payload.auth.status_code; // 0 = Success, 1 = Error
-    }
-    
     return -1; // Network failure
 }
 
