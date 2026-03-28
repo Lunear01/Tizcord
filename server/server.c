@@ -77,7 +77,13 @@ void run_server_loop(ServerContext *ctx) {
 
         // handle new connection
         if (FD_ISSET(ctx->server_fd, &read_set)) {
-            handle_new_connection(ctx);
+            int new_client_fd = handle_new_connection(ctx);
+            if (new_client_fd != -1) {
+                FD_SET(new_client_fd, &master_set);
+                if (new_client_fd > max_fd) {
+                    max_fd = new_client_fd;
+                }
+            }
         }
 
         // loop through each client
@@ -127,16 +133,16 @@ int accept_connection(int listenfd) {
 }
 
 // Handle new connections
-void handle_new_connection(ServerContext *ctx) {
+int handle_new_connection(ServerContext *ctx) {
     int client_fd = accept_connection(ctx->server_fd);
     if (client_fd < 0) {
-        return; // accept failed, just return to the main loop
+        return -1; // accept failed, just return to the main loop
     }
 	
 	if (ctx->client_count >= MAX_CLIENTS) {
 		printf("Server full! Rejecting incoming connection.\n");
 		close(client_fd);
-		return;
+		return -1;
 	}
 
 	ClientNode *client = &ctx->clients[ctx->client_count];
@@ -144,6 +150,7 @@ void handle_new_connection(ServerContext *ctx) {
     client->socket_fd = client_fd;
     client->ctx = ctx;
     ctx->clients[ctx->client_count++] = *client;
+    return client_fd;
 }
 
 // Handle individual client communication
