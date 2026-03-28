@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../include/db.h"
-#include "../include/server.h"
+#include "../server/include/db.h"
+#include "../server/include/server.h"
 
 #ifndef PORT
 #define PORT 4242
@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     }
 
     ServerContext ctx;
-    init_server_context(&ctx);
+    init_server_context(&ctx, db);
 
     ctx.server_fd = start_server(port);
     run_server_loop(&ctx);

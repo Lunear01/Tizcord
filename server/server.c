@@ -1,6 +1,7 @@
-#include "../include/server.h"
-#include "../include/protocol.h" 
-#include "../include/auth.h"
+#include "../server/include/server.h"
+#include "../shared/protocol.h" 
+#include "../server/include/auth.h"
+#include "../server/include/tizcord_chat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,13 +90,31 @@ void *client_handler(void *arg) {
             default:
                 printf("[Server] Unknown packet type received!\n");
                 break;
+        }
     }
-    
     close(client->socket_fd);
     printf("Client disconnected.\n");
     return NULL;
 }
 
+int accept_connection(int listenfd) {
+    struct sockaddr_in peer;
+    socklen_t peer_len = sizeof(peer);
+    peer.sin_family = AF_INET;
+
+    fprintf(stderr, "Waiting for a new connection...\n");
+    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
+    if (client_socket < 0) {
+        perror("accept");
+        return -1;
+    } else {
+        fprintf(stderr,
+            "New connection accepted from %s:%d\n",
+            inet_ntoa(peer.sin_addr),
+            ntohs(peer.sin_port));
+        return client_socket;
+    }
+}
 // Handle new connections
 void handle_new_connection(ServerContext *ctx) {
     int client_fd = accept_connection(ctx->server_fd);
@@ -124,22 +143,3 @@ void run_server_loop(ServerContext *ctx) {
     }
 }
 
-// TEST CODE FROM LAB 10
-int accept_connection(int listenfd) {
-    struct sockaddr_in peer;
-    unsigned int peer_len = sizeof(peer);
-    peer.sin_family = AF_INET;
-
-    fprintf(stderr, "Waiting for a new connection...\n");
-    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
-    if (client_socket < 0) {
-        perror("accept");
-        return -1;
-    } else {
-        fprintf(stderr,
-            "New connection accepted from %s:%d\n",
-            inet_ntoa(peer.sin_addr),
-            ntohs(peer.sin_port));
-        return client_socket;
-    }
-}

@@ -6,8 +6,7 @@
 #include <sys/socket.h>
 #include <time.h>
 
-#include "protocol.h" 
-#include "server.h"   
+#include "protocol.h"  
 #include "client.h"   
 
 // Global socket for the client connection
@@ -86,7 +85,7 @@ void leave_server(int server_id) {
     TizcordPacket packet = create_base_packet(MSG_SERVER);
     
     packet.payload.server.action = SERVER_LEAVE;
-    packet.payload.server.server_id = server_id;
+    snprintf((char *)packet.payload.server.server_id, sizeof(packet.payload.server.server_id), "%d", server_id);
 
     printf("[Client] Sending request to leave server ID: %d\n", server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
@@ -101,7 +100,7 @@ void create_channel(int server_id, const char *channel_name) {
     // packet.payload.channel.server_id = server_id;
     // strncpy(packet.payload.channel.channel_name, channel_name, 31);
     packet.payload.channel.action = CHANNEL_CREATE;
-    packet.payload.channel.server_id = server_id;
+    snprintf((char *)packet.payload.channel.server_id, sizeof(packet.payload.channel.server_id), "%d", server_id);
     strncpy(packet.payload.channel.channel_name, channel_name, sizeof(packet.payload.channel.channel_name) - 1);
 
     printf("[Client] Sending request to create channel '%s' in server %d\n", channel_name, server_id);
@@ -114,7 +113,7 @@ void delete_channel(int channel_id) {
     TizcordPacket packet = create_base_packet(MSG_CHANNEL);
     
     packet.payload.channel.action = CHANNEL_DELETE;
-    packet.payload.channel.channel_id = channel_id;
+    snprintf((char *)packet.payload.channel.channel_id, sizeof(packet.payload.channel.channel_id), "%d", channel_id);
 
     printf("[Client] Sending request to delete channel ID: %d\n", channel_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
@@ -144,11 +143,4 @@ void accept_friend_request(const char *target_username) {
 
     printf("[Client] Accepting friend request from %s...\n", target_username);
     write(client_socket, &packet, sizeof(TizcordPacket));
-}
-
-void update_user_status(ServerContext *ctx, int client_index, UserStatus new_status) {
-    // This utilizes the ServerContext which tracks the array of connected clients
-    if (ctx != NULL && client_index >= 0 && client_index < ctx->client_count) {
-        printf("[Client/Server] Updating status for user %s\n", ctx->clients[client_index].username);
-    }
 }

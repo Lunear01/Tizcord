@@ -35,7 +35,7 @@ DbContext* db_connect(const char* conninfo) {
 
 void db_disconnect(DbContext* db) {
     if (db) {
-        fprinf(stderr, "Gracefully closing database connection...\n");
+        fprintf(stderr, "Gracefully closing database connection...\n");
         sqlite3_close(db->conn);
         free(db);
     }
@@ -71,9 +71,19 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
 //TODO: Implement:
 // db_edit_message
 // db_delete_message 
+// db_save_message
 int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
     //TODO
 }
 int db_delete_message(DbContext* db, const char* message_id){
     //TODO
+}
+
+int db_save_message(DbContext* db, const char* channel_id, const char* user_id, const char* message) {
+    // Suppress unused variable warnings temporarily 
+    (void)db;
+    (void)channel_id;
+    (void)user_id;
+    (void)message;
+    return 0; 
 }

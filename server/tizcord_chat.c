@@ -1,11 +1,25 @@
 #include "../include/tizcord_chat.h"
 #include "../include/server.h"
-#include "../include/protocol.h"
+#include "../shared/protocol.h"
 #include "../include/db.h"
+#include "../include/tizcord_channel.h"
+#include "../include/tizcord_server.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+void channel_broadcast(ServerContext *ctx, void *channel_id, const char *packet, size_t packet_size, int sender_fd) {
+    (void)channel_id; // Will be used later to filter by specific channels
+    
+    for (int i = 0; i < ctx->client_count; i++) {
+        // Only send to active sockets, and don't echo back to the sender
+        if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].socket_fd != sender_fd) {
+            write(ctx->clients[i].socket_fd, packet, packet_size);
+        }
+    }
+}
 
 void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (!ctx || !packet) return;
@@ -90,21 +104,31 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
     }
 
     if (packet->payload.channel.action == CHANNEL_MESSAGE) {
-        // Updated printf to use %s for the UUID string
-        printf("[Chat] Broadcast request from %s to Channel ID: %s\n", 
-               packet->sender, packet->payload.channel.channel_id);
+        // Safely extract the ID
+        int safe_chan_id = (int)(intptr_t)packet->payload.channel.channel_id;
+
+        // FIXED: Using safe_chan_id here instead of the raw pointer
+        printf("[Chat] Broadcast request from %s to Channel ID: %d\n", 
+               packet->sender, safe_chan_id);
         
         // Broadcast the entire packet
         channel_broadcast(ctx, 
-                          0, // Temporary placeholder index
+                          packet->payload.channel.channel_id,
                           (const char*)packet, 
                           sizeof(TizcordPacket), 
                           sender_fd);
         
         if (ctx->db != NULL && sender_node != NULL) {
+            //Convert numeric IDs into strings for the database
+            char chan_id_str[32];
+            char user_id_str[64];
+            
+            snprintf(chan_id_str, sizeof(chan_id_str), "%d", (int)packet->payload.channel.channel_id);
+            snprintf(user_id_str, sizeof(user_id_str), "%llu", (unsigned long long)sender_node->id);
+
             db_save_message(ctx->db, 
-                            packet->payload.channel.channel_id, 
-                            sender_node->id, 
+                            chan_id_str, 
+                            user_id_str, 
                             packet->payload.channel.message);
         }
     }

@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #include "db.h"
-#include "protocol.h"
+#include "../../shared/protocol.h"
 
 typedef struct {
     uint64_t id;

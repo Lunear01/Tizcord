@@ -1,11 +1,12 @@
 #include "../include/auth.h"
-#include "../include/protocol.h"
+#include "../shared/protocol.h"
 #include "../include/db.h"
 #include "../include/server.h"
 
 #include <crypt.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     printf("[Server] Received AUTH_REGISTER for %s\n", packet->payload.auth.username);
