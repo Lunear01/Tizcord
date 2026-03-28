@@ -61,32 +61,23 @@ int start_server(int port) {
     return socket_fd;
 }
 
-<<<<<<< Updated upstream
 void run_server_loop(ServerContext *ctx) {
-    int server_socket = ctx->server_fd;
-    
-=======
-void run_server_loop(ServerContext *ctx, int server_socket) {
->>>>>>> Stashed changes
     fd_set master_set, read_set;
     FD_ZERO(&master_set);
-    FD_SET(server_socket, &master_set);
-    int max_fd = server_socket;
+    FD_SET(ctx->server_fd, &master_set);
+    int max_fd = ctx->server_fd;
 
     while (1) {
         read_set = master_set;
-<<<<<<< Updated upstream
-=======
         
->>>>>>> Stashed changes
         if (select(max_fd + 1, &read_set, NULL, NULL, NULL) == -1) {
             perror("select");
             exit(EXIT_FAILURE);
         }
 
         // handle new connection
-        if (FD_ISSET(server_socket, &read_set)) {
-            handle_new_connection(ctx, server_socket);
+        if (FD_ISSET(ctx->server_fd, &read_set)) {
+            handle_new_connection(ctx);
         }
 
         // loop through each client

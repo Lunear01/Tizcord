@@ -13,7 +13,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     
     TizcordPacket reply;
     memset(&reply, 0, sizeof(TizcordPacket));
-    reply.type = MSG_LOGIN;
+    reply.type = AUTH_LOGIN;
     reply.payload.auth.action = AUTH_REGISTER;
     
     printf("[Server] Step 1: Generating yescrypt salt...\n");

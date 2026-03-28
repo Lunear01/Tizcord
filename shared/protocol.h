@@ -1,11 +1,15 @@
 // This is the file that both server and client will include
 // Prevents segfaults when packets being sent/received
-#include <sqlite3.h>
 
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
 #include <sqlite3.h>
+
+#define MAX_PACKET_SIZE 1024
+#define MAX_NAME_LEN 32
+#define PASSWORD_LEN 64
+#define MESSAGE_LEN 512
 
 typedef enum {
     AUTH,
@@ -72,22 +76,23 @@ typedef enum {
 typedef struct {
     AuthAction action;
     int status_code;
-    char username[32];
-    char password[64]; // This should always be hashed
+    char username[MAX_NAME_LEN];
+    char password[PASSWORD_LEN]; // This should always be hashed
 } AuthPayload;
 
 typedef struct {
     DMAction action;
     int status_code;
+    int recipient_id; // user ID of the recipient 
     sqlite3_int64 message_id;
-    char message[512]; // The actual text content
+    char message[MESSAGE_LEN]; // The actual text content
 } DMPayload;
 
 typedef struct {
     ServerAction action;
     sqlite3_int64 server_id;
     int status_code;
-    char server_name[32];
+    char server_name[MAX_NAME_LEN];
 } ServerPayload;
 
 typedef struct {
@@ -95,9 +100,9 @@ typedef struct {
     sqlite3_int64 server_id;
     int status_code;
     sqlite3_int64 channel_id;
-    char channel_name[32];
+    char channel_name[MAX_NAME_LEN];
     sqlite3_int64 message_id;
-    char message[512];
+    char message[MESSAGE_LEN];
 } ChannelPayload;
 
 typedef struct {
@@ -114,7 +119,7 @@ typedef struct {
         ChannelPayload channel;
         StatusPayload status;
     } payload; 
-    long timestamp;
+    long long timestamp;
 } TizcordPacket;
 
 #endif
