@@ -68,14 +68,6 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
 //TODO: Implement:
 // db_edit_message
 // db_delete_message 
-<<<<<<< HEAD
-// int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
-//     //TODO
-// }
-// int db_delete_message(DbContext* db, const char* message_id){
-//     //TODO
-// }
-=======
 // db_save_message
 int db_edit_message(DbContext* db, const char* message_id, const char* new_content){
     //TODO
@@ -92,4 +84,3 @@ int db_save_message(DbContext* db, const char* channel_id, const char* user_id, 
     (void)message;
     return 0; 
 }
->>>>>>> b5b74eea599b54975a536000538d8017221e3db3

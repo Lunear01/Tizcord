@@ -1,14 +1,7 @@
-<<<<<<< HEAD
 #include "../shared/protocol.h"
 #include "include/server.h"
 #include "include/auth.h"
 
-=======
-#include "../server/include/server.h"
-#include "../shared/protocol.h" 
-#include "../server/include/auth.h"
-#include "../server/include/tizcord_chat.h"
->>>>>>> b5b74eea599b54975a536000538d8017221e3db3
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -169,64 +162,9 @@ void *client_handler(void *arg) {
                 printf("[Server] Unknown packet type received!\n");
                 break;
         }
-<<<<<<< HEAD
         
         close(client->socket_fd);
         printf("Client disconnected.\n");
         return NULL;
     }
 }
-=======
-    }
-    close(client->socket_fd);
-    printf("Client disconnected.\n");
-    return NULL;
-}
-
-int accept_connection(int listenfd) {
-    struct sockaddr_in peer;
-    socklen_t peer_len = sizeof(peer);
-    peer.sin_family = AF_INET;
-
-    fprintf(stderr, "Waiting for a new connection...\n");
-    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
-    if (client_socket < 0) {
-        perror("accept");
-        return -1;
-    } else {
-        fprintf(stderr,
-            "New connection accepted from %s:%d\n",
-            inet_ntoa(peer.sin_addr),
-            ntohs(peer.sin_port));
-        return client_socket;
-    }
-}
-// Handle new connections
-void handle_new_connection(ServerContext *ctx) {
-    int client_fd = accept_connection(ctx->server_fd);
-    if (client_fd < 0) return;
-    
-    if (ctx->client_count >= MAX_CLIENTS) {
-        printf("Server full! Rejecting incoming connection.\n");
-        close(client_fd);
-        return;
-    }
-    
-    // Grab the next available static ClientNode slots
-    ClientNode *client = &ctx->clients[ctx->client_count++];
-    client->socket_fd = client_fd;
-    client->ctx = ctx; 
-    
-    pthread_t tid;
-    pthread_create(&tid, NULL, client_handler, client);
-    pthread_detach(tid);
-}
-
-// Run forever and call handle_new_connection
-void run_server_loop(ServerContext *ctx) {
-    while (1) {
-        handle_new_connection(ctx);
-    }
-}
-
->>>>>>> b5b74eea599b54975a536000538d8017221e3db3
