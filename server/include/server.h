@@ -14,6 +14,10 @@
 #include <stdint.h>
 
 #include "db.h"
+<<<<<<< HEAD
+=======
+#include "../../shared/protocol.h"
+>>>>>>> b5b74eea599b54975a536000538d8017221e3db3
 
 typedef struct {
     uint64_t id;

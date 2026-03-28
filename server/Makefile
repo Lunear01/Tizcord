@@ -1,16 +1,10 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -I../include
+CFLAGS = -Wall -Wextra -Iinclude -I../shared
 LDFLAGS = -lncurses -lsqlite3 -luuid -lcrypt
 
-all: server client
+all: server
 
-server: server_main.o server.o auth.o db.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-client: client_main.o client.o ui.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-ui: ui.o
+server: server_main.o server.o auth.o db.o tizcord_chat.o tizcord_server.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c

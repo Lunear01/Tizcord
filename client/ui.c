@@ -983,6 +983,71 @@ void handle_chat_input(int ch)
     }
 }
 
+// ─── Network Integration (Thread-Safe Callbacks) ─────────────────────────────
+
+void ui_receive_channel_message(TizcordPacket *packet) {
+    // For now, we'll map the incoming message directly to the active server/channel
+    // In a full implementation, you'd match packet->payload.channel.server_id
+    if (active_server >= 0 && active_server < server_count) {
+        UIServer *sv = &servers[active_server];
+        
+        // Extract channel index safely
+        int c_idx = (int)(intptr_t)packet->payload.channel.channel_id;
+        
+        if (c_idx >= 0 && c_idx < sv->channel_count) {
+            UIChannel *c = &sv->channels[c_idx];
+            if (c->msg_count < MAX_MESSAGES) {
+                Message *m = &c->messages[c->msg_count++];
+                strncpy(m->sender, packet->sender, MAX_NAME_LEN - 1);
+                strncpy(m->body, packet->payload.channel.message, MAX_MSG_LEN - 1);
+                m->ts = packet->timestamp;
+            }
+        }
+    }
+}
+
+void ui_edit_channel_message(TizcordPacket *packet) {
+    // TODO: Iterate through c->messages and string-match the message_id to overwrite body
+    (void)packet; 
+}
+
+void ui_delete_channel_message(TizcordPacket *packet) {
+    // TODO: Iterate through c->messages, find message_id, and shift array left to delete
+    (void)packet;
+}
+
+void ui_receive_dm_message(TizcordPacket *packet) {
+    // TODO: Add logic for a dedicated DM screen
+    (void)packet;
+}
+
+void ui_update_server_state(TizcordPacket *packet) {
+    // TODO: Add new servers to the `servers` array when created
+    (void)packet;
+}
+
+void ui_force_redraw(void) {
+    // Grab the current terminal size
+    int rows, cols;
+    getmaxyx(stdscr, rows, cols);
+    
+    // Redraw whatever screen the user is currently looking at so new messages pop up instantly
+    switch (current_screen) {
+        case SCREEN_LOGIN:
+            draw_auth(rows, cols, 0);
+            break;
+        case SCREEN_SIGNUP:
+            draw_auth(rows, cols, 1);
+            break;
+        case SCREEN_SERVERS:
+            draw_server_list(rows, cols);
+            break;
+        case SCREEN_CHAT:
+            draw_chat(rows, cols);
+            break;
+    }
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 void start_ui(void)
