@@ -26,32 +26,33 @@ void channel_broadcast(ServerContext *ctx, sqlite3_int64 channel_id, const char 
 void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (!ctx || !packet) return;
 
-    if (packet->type == MSG_DM) {
+    if (packet->type == DM) {
         handle_private_message(ctx, packet, sender_fd);
-    } else if (packet->type == MSG_CHANNEL) {
+    } else if (packet->type == CHANNEL) {
         handle_channel_message(ctx, packet, sender_fd);
     }
 }
 
 void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (packet->payload.dm.action == DM_MESSAGE) {
-        printf("[Chat] Routing DM from %s to %s\n", packet->sender, packet->receiver);
+        printf("[Chat] Routing DM from %lld to %lld\n", 
+               (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
         
         int found = 0;
         // Find recipient by matching username in the active client array
         for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].socket_fd > 0 && strcmp(ctx->clients[i].username, packet->receiver) == 0) {
+            if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
                 
                 // Forward the exact packet to the receiver's socket
                 write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
-                printf("[Chat] DM delivered to %s\n", packet->receiver);
+                printf("[Chat] DM delivered to ID %lld\n", (long long)packet->payload.dm.recipient_id);
                 found = 1;
                 break;
             }
         }
         
         if (!found) {
-            printf("[Chat] Message failed: User %s not found or offline.\n", packet->receiver);
+            printf("[Chat] Message failed: User %lld not found or offline.\n", (long long)packet->payload.dm.recipient_id);
             
             // Route an error packet back to sender_fd
             TizcordPacket error_reply;
@@ -71,7 +72,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
 
         // Forward edit packet to the receiver so their UI updates
         for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].socket_fd > 0 && strcmp(ctx->clients[i].username, packet->receiver) == 0) {
+            if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
                 write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
                 break;
             }
@@ -86,7 +87,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
 
         // Forward delete packet to the receiver so their UI updates
         for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].socket_fd > 0 && strcmp(ctx->clients[i].username, packet->receiver) == 0) {
+            if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
                 write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
                 break;
             }
@@ -106,8 +107,8 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
     }
 
     if (packet->payload.channel.action == CHANNEL_MESSAGE) {
-        printf("[Chat] Broadcast request from %s to Channel ID: %lld\n", 
-               packet->sender, (long long)packet->payload.channel.channel_id);
+        printf("[Chat] Broadcast request from %lld to Channel ID: %lld\n", 
+               (long long)packet->sender_id, (long long)packet->payload.channel.channel_id);
         
         // Broadcast the entire packet
         channel_broadcast(ctx, 

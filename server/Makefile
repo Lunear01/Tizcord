@@ -4,7 +4,7 @@ LDFLAGS = -lncurses -lsqlite3 -luuid -lcrypt
 
 all: server
 
-server: server_main.o server.o auth.o db.o tizcord_chat.o tizcord_server.o
+server: main.o server.o auth.o db.o tizcord_chat.o tizcord_server.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c
