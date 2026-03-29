@@ -8,20 +8,10 @@
 
 #include "protocol.h"  
 #include "client.h"   
+#include "packet_helper.h"
 
 // Global socket for the client connection
 int client_socket = -1;
-
-// Helper function to initialize a base packet
-TizcordPacket create_base_packet(PacketType type) {
-    TizcordPacket packet;
-    memset(&packet, 0, sizeof(TizcordPacket));
-    packet.type = type;
-    packet.timestamp = time(NULL);
-    // packet.sender no longer exists in the new protocol struct
-    // packet.sender_id = -1; // Wait until authenticated to set ID
-    return packet;
-}
 
 void connect_to_server(const char *ip_address, int port) {
     struct sockaddr_in serv_addr;
