@@ -3,13 +3,13 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
-#include "../include/ui.h"
+#include <unistd.h>
+#include <sys/select.h>
 
 #include "../include/ui.h"
 #include "../include/client.h"
-#include <pthread.h>
 
-extern pthread_mutex_t ui_mutex;
+extern int client_socket;
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 #define MAX_USERS 16
@@ -28,6 +28,7 @@ typedef enum
     SCREEN_SIGNUP,
     SCREEN_SERVERS,
     SCREEN_CHAT,
+    SCREEN_COMMAND
 } Screen;
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ typedef struct
     char description[80];
     char icon[4]; // emoji-like 2-char
     int member_count;
+    char member_names[MAX_USERS][MAX_NAME_LEN];
     UIChannel channels[UI_MAX_CHANNELS];
     int channel_count;
 } UIServer;
@@ -76,6 +78,10 @@ int server_count = 0;
 Screen current_screen = SCREEN_LOGIN;
 int active_server = -1;
 int active_channel = 0;
+
+Screen previous_screen = SCREEN_LOGIN;
+char cmd_input[MAX_MSG_LEN] = {0};
+int cmd_input_len = 0;
 
 // ─── Seed Data ───────────────────────────────────────────────────────────────
 
@@ -161,6 +167,11 @@ void seed_data()
     for (int i = 0; i < server_count; i++)
     {
         servers[i].id = i;
+        servers[0].member_count = 4;
+        strcpy(servers[0].member_names[0], "Alice_Admin");
+        strcpy(servers[0].member_names[1], "Bob_Gamer");
+        strcpy(servers[0].member_names[2], "Charlie_Dev");
+        strcpy(servers[0].member_names[3], "Diana_Design");
         strncpy(servers[i].name, sv[i].name, MAX_NAME_LEN - 1);
         strncpy(servers[i].description, sv[i].desc, 79);
         strncpy(servers[i].icon, sv[i].icon, 3);
@@ -669,7 +680,7 @@ void draw_server_list(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  F1: Command Line");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -730,31 +741,34 @@ int chat_input_len = 0;
 
 /* Width of the sidebar panel */
 #define SIDEBAR_W 20
+#define RIGHT_SIDEBAR_W 20
 
 void draw_chat(int rows, int cols)
 {
     erase();
     UIServer *sv = &servers[active_server];
 
-    /* ── Sidebar background (columns 0..SIDEBAR_W-1) ── */
+    // Calculate layout bounds
+    int main_x = SIDEBAR_W + 1;
+    int right_x = cols - RIGHT_SIDEBAR_W;
+    int main_w = (right_x - 1) - main_x; // Shrink main area to fit right sidebar
+
+    /* ── Left Sidebar (Channels) ── */
     attron(COLOR_PAIR(3));
     for (int r = 0; r < rows - 1; r++)
         mvhline(r, 0, ' ', SIDEBAR_W);
     attroff(COLOR_PAIR(3));
 
-    /* Server name header */
     attron(COLOR_PAIR(10) | A_BOLD);
     mvhline(0, 0, ' ', SIDEBAR_W);
     mvprintw(0, 1, " %-*.*s", SIDEBAR_W - 3, SIDEBAR_W - 3, sv->name);
     attroff(COLOR_PAIR(10) | A_BOLD);
 
-    /* "CHANNELS" label */
     attron(COLOR_PAIR(4));
     mvprintw(2, 2, "CHANNELS");
     attroff(COLOR_PAIR(4));
 
-    /* Channel list */
-    int ch_label_w = SIDEBAR_W - 5; /* room for " # " prefix + border */
+    int ch_label_w = SIDEBAR_W - 5; 
     for (int i = 0; i < sv->channel_count; i++)
     {
         int row = 4 + i * 2;
@@ -772,7 +786,6 @@ void draw_chat(int rows, int cols)
         }
     }
 
-    /* Bottom sidebar buttons */
     attron(COLOR_PAIR(9) | A_BOLD);
     mvprintw(rows - 3, 1, " << Servers");
     attroff(COLOR_PAIR(9) | A_BOLD);
@@ -781,43 +794,65 @@ void draw_chat(int rows, int cols)
     mvprintw(rows - 2, 1, " Logout");
     attroff(COLOR_PAIR(8) | A_BOLD);
 
-    /* Sidebar right border */
     attron(COLOR_PAIR(6));
     for (int r = 0; r < rows - 1; r++)
         mvaddch(r, SIDEBAR_W, ACS_VLINE);
     attroff(COLOR_PAIR(6));
 
-    /* ── Top bar (main area) ── */
-    int main_x = SIDEBAR_W + 1;
-    int main_w = cols - main_x;
 
+    /* ── Right Sidebar (Members) ── */
+    // Left border of the right sidebar
+    attron(COLOR_PAIR(6));
+    for (int r = 0; r < rows - 1; r++)
+        mvaddch(r, right_x - 1, ACS_VLINE);
+    attroff(COLOR_PAIR(6));
+
+    // Sidebar background
+    attron(COLOR_PAIR(3));
+    for (int r = 0; r < rows - 1; r++)
+        mvhline(r, right_x, ' ', RIGHT_SIDEBAR_W);
+    
+    // Header
+    attron(COLOR_PAIR(4));
+    mvprintw(2, right_x + 2, "MEMBERS - %d", sv->member_count);
+    attroff(COLOR_PAIR(4));
+
+    // List the members
+    for (int i = 0; i < sv->member_count && i < MAX_USERS; i++) {
+        attron(COLOR_PAIR(5) | A_BOLD);
+        mvprintw(4 + (i * 2), right_x + 2, "• %s", sv->member_names[i]);
+        attroff(COLOR_PAIR(5) | A_BOLD);
+    }
+    attroff(COLOR_PAIR(3));
+
+
+    /* ── Top bar (main area) ── */
     attron(COLOR_PAIR(10) | A_BOLD);
     mvhline(0, main_x, ' ', main_w);
     mvprintw(0, main_x + 1, " # %s", sv->channels[active_channel].name);
     if (current_user >= 0)
     {
         const char *uname = users[current_user].username;
-        int ux = cols - (int)strlen(uname) - 2;
+        int ux = right_x - (int)strlen(uname) - 2;
         if (ux > main_x + 1)
             mvprintw(0, ux, "%s ", uname);
     }
     attroff(COLOR_PAIR(10) | A_BOLD);
 
+
     /* ── Messages area ── */
     UIChannel *chan = &sv->channels[active_channel];
 
-    /* Clear message area */
     attron(COLOR_PAIR(1));
     for (int r = 1; r < rows - 2; r++)
         mvhline(r, main_x, ' ', main_w);
     attroff(COLOR_PAIR(1));
 
-    int msg_area = rows - 4; /* rows available for messages */
+    int msg_area = rows - 4; 
     int start = chan->msg_count > msg_area ? chan->msg_count - msg_area : 0;
-    int body_col = main_x + 20;       /* column where message body begins */
-    int body_w = cols - body_col - 1; /* available width for body text */
-    if (body_w < 1)
-        body_w = 1;
+    int body_col = main_x + 15;       
+    int body_w = main_w - 16; 
+    if (body_w < 1) body_w = 1;
 
     for (int i = start; i < chan->msg_count; i++)
     {
@@ -833,7 +868,7 @@ void draw_chat(int rows, int cols)
         attroff(COLOR_PAIR(4));
 
         attron(COLOR_PAIR(5) | A_BOLD);
-        mvprintw(row, main_x + 7, "%-12.*s", 12, m->sender);
+        mvprintw(row, main_x + 7, "%-7.*s", 7, m->sender);
         attroff(COLOR_PAIR(5) | A_BOLD);
 
         attron(COLOR_PAIR(1));
@@ -841,19 +876,18 @@ void draw_chat(int rows, int cols)
         attroff(COLOR_PAIR(1));
     }
 
-    /* ── Input separator ── */
+
+    /* ── Input Area ── */
     attron(COLOR_PAIR(6));
     mvhline(rows - 3, main_x, ACS_HLINE, main_w);
     attroff(COLOR_PAIR(6));
 
-    /* ── Input line ── */
     char prompt_buf[MAX_NAME_LEN + 4];
     snprintf(prompt_buf, sizeof(prompt_buf), "[#%s] ", sv->channels[active_channel].name);
     int prompt_len = strlen(prompt_buf);
     int input_col = main_x + 1 + prompt_len;
-    int input_w = cols - input_col - 1;
-    if (input_w < 1)
-        input_w = 1;
+    int input_w = main_w - prompt_len - 1;
+    if (input_w < 1) input_w = 1;
 
     attron(COLOR_PAIR(1));
     mvhline(rows - 2, main_x, ' ', main_w);
@@ -871,8 +905,7 @@ void draw_chat(int rows, int cols)
 
     /* Cursor */
     int cx = input_col + chat_input_len;
-    if (cx >= cols)
-        cx = cols - 1;
+    if (cx >= right_x) cx = right_x - 1;
     move(rows - 2, cx);
     refresh();
 }
@@ -1054,29 +1087,104 @@ void ui_update_server_state(TizcordPacket *packet) {
     }
 }
 
-void ui_force_redraw(void) {
-    // Grab the current terminal size
-    int rows, cols;
-    getmaxyx(stdscr, rows, cols);
-    
-    // Redraw whatever screen the user is currently looking at so new messages pop up instantly
-    switch (current_screen) {
-        case SCREEN_LOGIN:
-            draw_auth(rows, cols, 0);
+// ─── Screen: COMMAND LINE ────────────────────────────────────────────────────
+
+void draw_command(int rows, int cols)
+{
+    erase(); // Ensures nothing is in the background
+
+    int bw = 60; // Box width
+    int bh = 3;  // Box height
+    int by = (rows - bh) / 2;
+    int bx = (cols - bw) / 2;
+
+    if (bx < 0) bx = 0;
+    if (by < 0) by = 0;
+
+    // Draw the centered box
+    draw_box(by, bx, bh, bw, 5);
+
+    // Draw the label above the box
+    attron(COLOR_PAIR(4));
+    mvprintw(by - 1, bx, "Command Line (ESC to cancel, ENTER to submit)");
+    attroff(COLOR_PAIR(4));
+
+    // Draw the input prompt and current text
+    attron(COLOR_PAIR(1));
+    mvprintw(by + 1, bx + 2, "> %s", cmd_input);
+    attroff(COLOR_PAIR(1));
+
+    // Place the blinking cursor at the end of the input
+    move(by + 1, bx + 4 + cmd_input_len);
+    refresh();
+}
+
+void handle_command_input(int ch)
+{
+    switch (ch)
+    {
+        case 27: // ESC key
+            // Cancel and return to previous screen
+            current_screen = previous_screen;
             break;
-        case SCREEN_SIGNUP:
-            draw_auth(rows, cols, 1);
+
+        case '\n':
+        case KEY_ENTER:
+            // TODO: Process the actual command text here if needed!
+            
+            // Clear the input and return to the previous screen
+            cmd_input[0] = '\0';
+            cmd_input_len = 0;
+            current_screen = previous_screen;
             break;
-        case SCREEN_SERVERS:
-            draw_server_list(rows, cols);
+
+        case KEY_BACKSPACE:
+        case 127:
+            // Delete character
+            if (cmd_input_len > 0)
+                cmd_input[--cmd_input_len] = '\0';
             break;
-        case SCREEN_CHAT:
-            draw_chat(rows, cols);
+
+        default:
+            // Type character
+            if (ch >= 32 && ch < 127 && cmd_input_len < MAX_MSG_LEN - 1)
+            {
+                cmd_input[cmd_input_len++] = (char)ch;
+                cmd_input[cmd_input_len] = '\0';
+            }
             break;
     }
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+// ─── Main Network & UI Loop ──────────────────────────────────────────────────
+
+// Process incoming network data
+void process_network_packet(TizcordPacket *packet) {
+    switch (packet->type) {
+        case CHANNEL:
+            if (packet->payload.channel.action == CHANNEL_MESSAGE) {
+                ui_receive_channel_message(packet);
+            } else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
+                ui_edit_channel_message(packet);
+            } else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
+                ui_delete_channel_message(packet);
+            }
+            break;
+        case DM:
+            if (packet->payload.dm.action == DM_MESSAGE) {
+                ui_receive_dm_message(packet);
+            }
+            break;
+        case SERVER:
+            ui_update_server_state(packet);
+            break;
+        case AUTH:
+            ui_handle_auth_response(packet);
+            break;
+        default:
+            break;
+    }
+}
 
 void start_ui(void)
 {
@@ -1090,52 +1198,107 @@ void start_ui(void)
     curs_set(1);
     init_colors();
 
-    // Make getch() return ERR after 100ms if no keys are pressed.
-    // This allows the loop to spin and release the mutex for the network thread
-    timeout(100); 
+    // Make getch() non-blocking so we can drain it cleanly after select() wakes up
+    nodelay(stdscr, TRUE); 
 
     int rows, cols, ch;
 
+    // --- INITIAL DRAW ---
+    getmaxyx(stdscr, rows, cols);
+    switch (current_screen)
+    {
+        case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
+        case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
+        case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+        case SCREEN_CHAT: draw_chat(rows, cols); break;
+        case SCREEN_COMMAND: draw_command(rows, cols); break; // FIXED warning
+    }
+
+    // --- SINGLE THREADED EVENT LOOP ---
     while (1)
     {
-        // Lock the UI before reading terminal size or drawing
-        pthread_mutex_lock(&ui_mutex);
-        getmaxyx(stdscr, rows, cols);
-
-        switch (current_screen)
-        {
-            case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
-            case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
-            case SCREEN_SERVERS: draw_server_list(rows, cols); break;
-            case SCREEN_CHAT: draw_chat(rows, cols); break;
-        }
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
         
-        // Unlock the UI immediately after drawing
-        pthread_mutex_unlock(&ui_mutex);
+        // 1. Always listen to Standard Input (Keyboard/Mouse)
+        FD_SET(STDIN_FILENO, &read_fds);
+        int max_fd = STDIN_FILENO;
 
-        // Wait for input (blocks for a max of 100ms)
-        ch = getch();
-
-        // If the user pressed something, lock the UI again to process the state change
-        if (ch != ERR) {
-            pthread_mutex_lock(&ui_mutex);
-            
-            if (ch == 'q' && current_screen == SCREEN_CHAT) {
-                pthread_mutex_unlock(&ui_mutex);
-                break;
+        // 2. Listen to the network socket if connected
+        if (client_socket != -1) {
+            FD_SET(client_socket, &read_fds);
+            if (client_socket > max_fd) {
+                max_fd = client_socket;
             }
+        }
 
+        // Block until input arrives from EITHER the keyboard OR the network
+        if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) < 0) {
+            continue; // Handle interrupt signals cleanly
+        }
+
+        int needs_redraw = 0; // FIXED scoping issue
+
+        // --- CHECK NETWORK ---
+        if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
+            TizcordPacket packet;
+            int bytes_read = read(client_socket, &packet, sizeof(TizcordPacket));
+            
+            if (bytes_read > 0) {
+                process_network_packet(&packet);
+                needs_redraw = 1;
+            } else if (bytes_read == 0) {
+                // Server disconnected gracefully
+                close(client_socket);
+                client_socket = -1;
+            }
+        }
+
+        // --- CHECK USER INPUT ---
+        if (FD_ISSET(STDIN_FILENO, &read_fds)) {
+            // Drain all available keys since getch() is non-blocking
+            while ((ch = getch()) != ERR) {
+                if (ch == 'q' && current_screen == SCREEN_CHAT) {
+                    goto exit_ui_loop; // Break out of nested loops cleanly
+                }
+
+                // Global F1 intercept to toggle command mode
+                if (ch == KEY_F(1) && current_screen != SCREEN_COMMAND) {
+                    previous_screen = current_screen;
+                    current_screen = SCREEN_COMMAND;
+                    cmd_input[0] = '\0';
+                    cmd_input_len = 0;
+                    needs_redraw = 1;
+                    continue;
+                }
+
+                // Route input to the active screen
+                switch (current_screen)
+                {
+                    case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
+                    case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
+                    case SCREEN_SERVERS: handle_server_input(ch); break;
+                    case SCREEN_CHAT: handle_chat_input(ch); break;
+                    case SCREEN_COMMAND: handle_command_input(ch); break;
+                }
+                needs_redraw = 1;
+            }
+        }
+
+        // --- BATCH REDRAW ---
+        if (needs_redraw) {
+            getmaxyx(stdscr, rows, cols);
             switch (current_screen)
             {
-                case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
-                case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
-                case SCREEN_SERVERS: handle_server_input(ch); break;
-                case SCREEN_CHAT: handle_chat_input(ch); break;
+                case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
+                case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
+                case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+                case SCREEN_CHAT: draw_chat(rows, cols); break;
+                case SCREEN_COMMAND: draw_command(rows, cols); break;
             }
-            
-            pthread_mutex_unlock(&ui_mutex);
         }
     }
 
+exit_ui_loop:
     endwin();
 }
