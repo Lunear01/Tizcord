@@ -1024,8 +1024,34 @@ void ui_receive_dm_message(TizcordPacket *packet) {
 }
 
 void ui_update_server_state(TizcordPacket *packet) {
-    // TODO: Add new servers to the `servers` array when created
-    (void)packet;
+    if (packet == NULL) {
+        return;
+    }
+
+    if (packet->payload.server.action != SERVER_LIST_JOINED) {
+        return;
+    }
+
+    if (packet->payload.server.status_code == 0) {
+        int incoming_id = (int)packet->payload.server.server_id;
+
+        for (int i = 0; i < server_count; i++) {
+            if (servers[i].id == incoming_id) {
+                return;
+            }
+        }
+
+        if (server_count >= UI_MAX_SERVERS) {
+            return;
+        }
+
+        UIServer *sv = &servers[server_count++];
+        memset(sv, 0, sizeof(*sv));
+        sv->id = incoming_id;
+        strncpy(sv->name, packet->payload.server.server_name, MAX_NAME_LEN - 1);
+        strncpy(sv->description, "Joined server", sizeof(sv->description) - 1);
+        strncpy(sv->icon, "[]", sizeof(sv->icon) - 1);
+    }
 }
 
 void ui_force_redraw(void) {

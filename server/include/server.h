@@ -54,6 +54,7 @@ typedef struct ServerContext {
     ClientNode clients[MAX_CLIENTS];
     TizcordServer tizcord_servers[MAX_SERVERS];
     int tizcord_server_count;
+    int current_client_index;
     DbContext* db;
 } ServerContext;
 
@@ -61,10 +62,10 @@ typedef struct ServerContext {
 /* Server lifecycle */
 void init_server_context(ServerContext* ctx, DbContext* db);
 int start_server(int port);
-void run_server_loop(ServerContext* ctx, int server_socket);
+void run_server_loop(ServerContext* ctx);
 
 /* handle connections */
-void handle_new_connection(ServerContext* ctx, int server_socket);
+int handle_new_connection(ServerContext* ctx);
 void *client_handler(void* arg);
 
 #endif

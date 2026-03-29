@@ -147,3 +147,13 @@ void accept_friend_request(const char *target_username) {
     printf("[Client] Accepting friend request from %s...\n", target_username);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
+
+void list_joined_servers_request(void) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(SERVER);
+    packet.payload.server.action = SERVER_LIST_JOINED;
+
+    printf("[Client] Requesting joined server list...\n");
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}

@@ -2,6 +2,11 @@
 #include <sqlite3.h>
 #include "server.h"
 
+typedef struct {
+	int client_fd;
+	int send_failed;
+} JoinedServerReplyCtx;
+
 void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* packet);
 void join_tizcord_server(ServerContext* ctx, int client_index,  sqlite3_int64 server_id);
 void leave_tizcord_server(ServerContext* ctx, int client_index, sqlite3_int64 server_id);

@@ -176,9 +176,6 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
         case SOCIAL :
             printf("[Server] Received SOCIAL packet\n");
             break;
-        case STATUS:
-            printf("[Server] Received STATUS packet\n");
-            break;
         default:
             printf("[Server] Unknown packet type %d received!\n", packet->type);
             break;

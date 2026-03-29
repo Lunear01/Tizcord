@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <unistd.h>
 
 static int find_client_index_by_fd(ServerContext* ctx, int client_fd) {
 	if (ctx == NULL) return -1;
@@ -30,6 +32,27 @@ static void list_channel_cb(sqlite3_int64 channel_id, const char* channel_name, 
 static void list_member_cb(sqlite3_int64 user_id, const char* username, int is_admin, void* userdata) {
 	(void)userdata;
 	printf("[Server] Member: id=%lld username=%s admin=%d\n", (int64_t)user_id, username, is_admin);
+}
+
+static void send_joined_server_cb(sqlite3_int64 server_id, const char* server_name, void* userdata) {
+	JoinedServerReplyCtx* reply_ctx = (JoinedServerReplyCtx*)userdata;
+	if (reply_ctx == NULL || reply_ctx->send_failed) {
+		return;
+	}
+
+	TizcordPacket reply;
+	memset(&reply, 0, sizeof(reply));
+	reply.type = SERVER;
+	reply.payload.server.action = SERVER_LIST_JOINED;
+	reply.payload.server.status_code = 0;
+	reply.payload.server.server_id = server_id;
+	strncpy(reply.payload.server.server_name, server_name,
+		sizeof(reply.payload.server.server_name) - 1);
+
+	ssize_t written = write(reply_ctx->client_fd, &reply, sizeof(reply));
+	if (written != (ssize_t)sizeof(reply)) {
+		reply_ctx->send_failed = 1;
+	}
 }
 
 void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* packet){
@@ -249,8 +272,31 @@ void list_joined_servers(ServerContext* ctx, int client_fd) {
 		return;
 	}
 
-	if (db_list_joined_servers(ctx->db, client->id, list_server_cb, NULL) != 0) {
+	JoinedServerReplyCtx reply_ctx = {
+		.client_fd = client_fd,
+		.send_failed = 0,
+	};
+
+	if (db_list_joined_servers(ctx->db, client->id, send_joined_server_cb, &reply_ctx) != 0) {
 		fprintf(stderr, "[Server] Failed to list joined servers for user id=%lld\n",
 			(int64_t)client->id);
+
+		TizcordPacket error_reply;
+		memset(&error_reply, 0, sizeof(error_reply));
+		error_reply.type = SERVER;
+		error_reply.payload.server.action = SERVER_LIST_JOINED;
+		error_reply.payload.server.status_code = -1;
+		write(client_fd, &error_reply, sizeof(error_reply));
+		return;
+	}
+
+	if (!reply_ctx.send_failed) {
+		TizcordPacket done_reply;
+		memset(&done_reply, 0, sizeof(done_reply));
+		done_reply.type = SERVER;
+		done_reply.payload.server.action = SERVER_LIST_JOINED;
+		done_reply.payload.server.status_code = 1;
+		done_reply.payload.server.server_id = -1;
+		write(client_fd, &done_reply, sizeof(done_reply));
 	}
 }
