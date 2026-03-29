@@ -3,13 +3,13 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
-#include "../include/ui.h"
+#include <unistd.h>
+#include <sys/select.h>
 
 #include "../include/ui.h"
 #include "../include/client.h"
-#include <pthread.h>
 
-extern pthread_mutex_t ui_mutex;
+extern int client_socket;
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 #define MAX_USERS 16
@@ -1028,29 +1028,35 @@ void ui_update_server_state(TizcordPacket *packet) {
     (void)packet;
 }
 
-void ui_force_redraw(void) {
-    // Grab the current terminal size
-    int rows, cols;
-    getmaxyx(stdscr, rows, cols);
-    
-    // Redraw whatever screen the user is currently looking at so new messages pop up instantly
-    switch (current_screen) {
-        case SCREEN_LOGIN:
-            draw_auth(rows, cols, 0);
+
+// ─── Main ────────────────────────────────────────────────────────────────────
+// Process incoming network data
+void process_network_packet(TizcordPacket *packet) {
+    switch (packet->type) {
+        case CHANNEL:
+            if (packet->payload.channel.action == CHANNEL_MESSAGE) {
+                ui_receive_channel_message(packet);
+            } else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
+                ui_edit_channel_message(packet);
+            } else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
+                ui_delete_channel_message(packet);
+            }
             break;
-        case SCREEN_SIGNUP:
-            draw_auth(rows, cols, 1);
+        case DM:
+            if (packet->payload.dm.action == DM_MESSAGE) {
+                ui_receive_dm_message(packet);
+            }
             break;
-        case SCREEN_SERVERS:
-            draw_server_list(rows, cols);
+        case SERVER:
+            ui_update_server_state(packet);
             break;
-        case SCREEN_CHAT:
-            draw_chat(rows, cols);
+        case AUTH:
+            ui_handle_auth_response(packet);
+            break;
+        default:
             break;
     }
 }
-
-// ─── Main ────────────────────────────────────────────────────────────────────
 
 void start_ui(void)
 {
@@ -1064,52 +1070,93 @@ void start_ui(void)
     curs_set(1);
     init_colors();
 
-    // Make getch() return ERR after 100ms if no keys are pressed.
-    // This allows the loop to spin and release the mutex for the network thread
-    timeout(100); 
+    // Make getch() non-blocking so we can drain it cleanly after select() wakes up
+    nodelay(stdscr, TRUE); 
 
     int rows, cols, ch;
 
+    // --- INITIAL DRAW ---
+    getmaxyx(stdscr, rows, cols);
+    switch (current_screen)
+    {
+        case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
+        case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
+        case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+        case SCREEN_CHAT: draw_chat(rows, cols); break;
+    }
+
+    // --- SINGLE THREADED EVENT LOOP ---
     while (1)
     {
-        // Lock the UI before reading terminal size or drawing
-        pthread_mutex_lock(&ui_mutex);
-        getmaxyx(stdscr, rows, cols);
-
-        switch (current_screen)
-        {
-            case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
-            case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
-            case SCREEN_SERVERS: draw_server_list(rows, cols); break;
-            case SCREEN_CHAT: draw_chat(rows, cols); break;
-        }
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
         
-        // Unlock the UI immediately after drawing
-        pthread_mutex_unlock(&ui_mutex);
+        // 1. Always listen to Standard Input (Keyboard/Mouse)
+        FD_SET(STDIN_FILENO, &read_fds);
+        int max_fd = STDIN_FILENO;
 
-        // Wait for input (blocks for a max of 100ms)
-        ch = getch();
-
-        // If the user pressed something, lock the UI again to process the state change
-        if (ch != ERR) {
-            pthread_mutex_lock(&ui_mutex);
-            
-            if (ch == 'q' && current_screen == SCREEN_CHAT) {
-                pthread_mutex_unlock(&ui_mutex);
-                break;
+        // 2. Listen to the network socket if connected
+        if (client_socket != -1) {
+            FD_SET(client_socket, &read_fds);
+            if (client_socket > max_fd) {
+                max_fd = client_socket;
             }
+        }
 
+        // Block until input arrives from EITHER the keyboard OR the network
+        if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) < 0) {
+            continue; // Handle interrupt signals cleanly
+        }
+
+        int needs_redraw = 0;
+
+        // --- CHECK NETWORK ---
+        if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
+            TizcordPacket packet;
+            int bytes_read = read(client_socket, &packet, sizeof(TizcordPacket));
+            
+            if (bytes_read > 0) {
+                process_network_packet(&packet);
+                needs_redraw = 1;
+            } else if (bytes_read == 0) {
+                // Server disconnected gracefully
+                close(client_socket);
+                client_socket = -1;
+            }
+        }
+
+        // --- CHECK USER INPUT ---
+        if (FD_ISSET(STDIN_FILENO, &read_fds)) {
+            // Drain all available keys since getch() is non-blocking
+            while ((ch = getch()) != ERR) {
+                if (ch == 'q' && current_screen == SCREEN_CHAT) {
+                    goto exit_ui_loop; // Break out of nested loops cleanly
+                }
+
+                switch (current_screen)
+                {
+                    case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
+                    case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
+                    case SCREEN_SERVERS: handle_server_input(ch); break;
+                    case SCREEN_CHAT: handle_chat_input(ch); break;
+                }
+                needs_redraw = 1;
+            }
+        }
+
+        // --- BATCH REDRAW ---
+        if (needs_redraw) {
+            getmaxyx(stdscr, rows, cols);
             switch (current_screen)
             {
-                case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
-                case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
-                case SCREEN_SERVERS: handle_server_input(ch); break;
-                case SCREEN_CHAT: handle_chat_input(ch); break;
+                case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
+                case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
+                case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+                case SCREEN_CHAT: draw_chat(rows, cols); break;
             }
-            
-            pthread_mutex_unlock(&ui_mutex);
         }
     }
 
+exit_ui_loop:
     endwin();
 }
