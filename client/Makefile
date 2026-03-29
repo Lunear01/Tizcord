@@ -6,7 +6,7 @@ SHARED_OBJ = ../shared/packet_helper.o
 
 all: client
 
-client: client_main.o client.o ui.o $(SHARED_OBJ)
+client: client_main.o client.o ui.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 ../shared/packet_helper.o: ../shared/packet_helper.c
