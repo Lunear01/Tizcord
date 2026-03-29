@@ -324,7 +324,7 @@ int db_edit_server(DbContext* db, int64_t server_id, int64_t user_id, const char
     return 0;
 }
 
-int db_list_servers(DbContext* db, ServerCallback server_cb, void* userdata) {
+int db_list_servers(DbContext* db, ServerCallback server_cb, void *userdata) {
     const char* sql = "SELECT id, name FROM servers ORDER BY name ASC;";
     sqlite3_stmt* stmt;
 

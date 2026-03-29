@@ -1,5 +1,6 @@
 /* tizcord server methods */
 #include "tizcord_server.h"
+#include "packet_helper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,42 +20,6 @@ static int find_client_index_by_fd(ServerContext* ctx, int client_fd) {
 	return -1;
 }
 
-static void list_server_cb(sqlite3_int64 server_id, const char* server_name, void* userdata) {
-	(void)userdata;
-	printf("[Server] Server: id=%lld name=%s\n", (int64_t)server_id, server_name);
-}
-
-static void list_channel_cb(sqlite3_int64 channel_id, const char* channel_name, void* userdata) {
-	(void)userdata;
-	printf("[Server] Channel: id=%lld name=%s\n", (int64_t)channel_id, channel_name);
-}
-
-static void list_member_cb(sqlite3_int64 user_id, const char* username, int is_admin, void* userdata) {
-	(void)userdata;
-	printf("[Server] Member: id=%lld username=%s admin=%d\n", (int64_t)user_id, username, is_admin);
-}
-
-static void send_joined_server_cb(sqlite3_int64 server_id, const char* server_name, void* userdata) {
-	JoinedServerReplyCtx* reply_ctx = (JoinedServerReplyCtx*)userdata;
-	if (reply_ctx == NULL || reply_ctx->send_failed) {
-		return;
-	}
-
-	TizcordPacket reply;
-	memset(&reply, 0, sizeof(reply));
-	reply.type = SERVER;
-	reply.payload.server.action = SERVER_LIST_JOINED;
-	reply.payload.server.status_code = 0;
-	reply.payload.server.server_id = server_id;
-	strncpy(reply.payload.server.server_name, server_name,
-		sizeof(reply.payload.server.server_name) - 1);
-
-	ssize_t written = write(reply_ctx->client_fd, &reply, sizeof(reply));
-	if (written != (ssize_t)sizeof(reply)) {
-		reply_ctx->send_failed = 1;
-	}
-}
-
 void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* packet){
 	if (ctx == NULL || packet == NULL) {
 		fprintf(stderr, "[Server] Invalid SERVER packet context\n");
@@ -67,8 +32,8 @@ void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* pack
 		return;
 	}
 
-	sqlite3_int64 server_id = (sqlite3_int64)packet->payload.server.server_id;
-	sqlite3_int64 target_user_id = (sqlite3_int64)packet->payload.server.target_user_id;
+	int64_t server_id = (sqlite3_int64)packet->payload.server.server_id;
+	int64_t target_user_id = (sqlite3_int64)packet->payload.server.target_user_id;
 
 	switch (packet->payload.server.action) {
 		case SERVER_JOIN:
@@ -79,7 +44,6 @@ void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* pack
 			break;
 		case SERVER_CREATE:
 			create_tizcord_server(ctx, packet->payload.server.server_name, client_fd);
-			break;
 		case SERVER_DELETE:
 			if (db_delete_server(ctx->db, server_id, ctx->clients[client_index].id) == 0) {
 				printf("[Server] Deleted server id=%lld\n", (int64_t)server_id);
@@ -97,7 +61,7 @@ void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* pack
 			}
 			break;
 		case SERVER_LIST:
-			list_tizcord_servers(ctx, packet->payload.server.server_name);
+			list_tizcord_servers(ctx);
 			break;
 		case SERVER_LIST_CHANNELS:
 			list_channels(ctx, client_fd, server_id);
@@ -124,7 +88,7 @@ void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* pack
 	}
 }
 
-void join_tizcord_server(ServerContext* ctx, int client_index, sqlite3_int64 server_id) {
+void join_tizcord_server(ServerContext* ctx, int client_index, int64_t server_id) {
 	if (ctx == NULL || ctx->db == NULL || client_index < 0 || client_index >= ctx->client_count) {
 		fprintf(stderr, "[Server] Invalid join request\n");
 		return;
@@ -144,7 +108,7 @@ void join_tizcord_server(ServerContext* ctx, int client_index, sqlite3_int64 ser
 	}
 }
 
-void leave_tizcord_server(ServerContext* ctx, int client_index, sqlite3_int64 server_id) {
+void leave_tizcord_server(ServerContext* ctx, int client_index, int64_t server_id) {
 	if (ctx == NULL || ctx->db == NULL || client_index < 0 || client_index >= ctx->client_count) {
 		fprintf(stderr, "[Server] Invalid leave request\n");
 		return;
@@ -156,6 +120,15 @@ void leave_tizcord_server(ServerContext* ctx, int client_index, sqlite3_int64 se
 		return;
 	}
 
+	// if server owner leaves, server gets deleted
+	if (db_user_is_server_admin(ctx->db, server_id, client->id, &(int){0}) == 0) {
+		db_delete_server(ctx->db, server_id, client->id);
+		printf("[Server] User id=%lld was admin and deleted server id=%lld\n",
+			(int64_t)client->id, (long long)server_id);
+		return;
+	}
+
+	// if user is not the owner, just leave the server
 	if (db_leave_server(ctx->db, server_id, client->id) == 0) {
 		printf("[Server] User id=%lld left server id=%lld\n",
 			(int64_t)client->id, (long long)server_id);
@@ -182,7 +155,7 @@ void create_tizcord_server(ServerContext* ctx, const char* server_name, int crea
 		return;
 	}
 
-	sqlite3_int64 new_server_id = 0;
+	int64_t new_server_id = 0;
 	if (db_create_server(ctx->db, server_name, creator->id, &new_server_id) == 0) {
 		printf("[Server] Created server id=%lld name=%s\n", (int64_t)new_server_id, server_name);
 	} else {
@@ -190,113 +163,52 @@ void create_tizcord_server(ServerContext* ctx, const char* server_name, int crea
 	}
 }
 
-void get_tizcord_server_info(ServerContext* ctx, int client_fd, sqlite3_int64 server_id) {
+void get_tizcord_server_info(ServerContext* ctx, int client_fd, int64_t server_id) {
 	list_channels(ctx, client_fd, server_id);
 	list_members(ctx, client_fd, server_id);
 }
 
-void delete_tizcord_server(ServerContext* ctx, const char* server_id) {
-	if (ctx == NULL || server_id == NULL) {
+void delete_tizcord_server(ServerContext* ctx, int64_t server_id) {
+	if (ctx == NULL || ctx->db == NULL || server_id == NULL) {
 		fprintf(stderr, "[Server] Invalid delete server request\n");
 		return;
 	}
+	
+	if (db_user_is_server_admin(ctx->db, server_id, -1, &(int){0}) != 0) {
+		fprintf(stderr, "[Server] Only server admins can delete servers id=%lld\n", server_id);
+		return;
+	}
 
-	fprintf(stderr,
-		"[Server] delete_tizcord_server(%s) called without requester context; "
-		"use SERVER_DELETE packet handling path instead\n",
-		server_id);
+	if(db_delete_server(ctx->db, server_id, -1) == 0) {
+		printf("[Server] Deleted server id=%s\n", server_id);
+	} else {
+		fprintf(stderr, "[Server] Failed to delete server id=%lld\n", server_id);
+	}
 }
 
-void list_tizcord_servers(ServerContext* ctx, const char* server_name) {
+void server_cb(int64_t server_id, const char* server_name, void* userdata) {
+	TizcordPacket packet = create_base_packet(SERVER);
+	packet.payload.server.action = SERVER_LIST;
+	packet.payload.server.server_id = server_id;
+	strncpy(packet.payload.server.server_name, server_name, sizeof(packet.payload.server.server_name) - 1);
+}
+
+void list_tizcord_servers(ServerContext* ctx) {
 	if (ctx == NULL || ctx->db == NULL) {
 		fprintf(stderr, "[Server] Invalid list servers request\n");
 		return;
 	}
 
-	if (server_name != NULL && server_name[0] != '\0') {
-		sqlite3_int64 server_id = 0;
-		if (db_get_server(ctx->db, server_name, &server_id) == 0) {
-			printf("[Server] Server: id=%lld name=%s\n", (int64_t)server_id, server_name);
-		} else {
-			fprintf(stderr, "[Server] Server not found: %s\n", server_name);
-		}
-		return;
-	}
-
-	if (db_list_servers(ctx->db, list_server_cb, NULL) != 0) {
+	if (db_list_servers(ctx->db, server_cb, NULL) != 0) {
 		fprintf(stderr, "[Server] Failed to list servers\n");
 	}
 }
 
-void list_channels(ServerContext* ctx, int client_fd, sqlite3_int64 server_id) {
-	(void)client_fd;
-
-	if (ctx == NULL || ctx->db == NULL) {
-		fprintf(stderr, "[Server] Invalid list channels request\n");
-		return;
-	}
-
-	if (db_list_server_channels(ctx->db, server_id, list_channel_cb, NULL) != 0) {
-		fprintf(stderr, "[Server] Failed to list channels for server id=%lld\n", (int64_t)server_id);
-	}
+void list_channels(ServerContext* ctx, int client_fd, int64_t server_id) {
 }
 
-void list_members(ServerContext* ctx, int client_fd, sqlite3_int64 server_id) {
-	(void)client_fd;
-
-	if (ctx == NULL || ctx->db == NULL) {
-		fprintf(stderr, "[Server] Invalid list members request\n");
-		return;
-	}
-
-	if (db_list_server_members(ctx->db, server_id, list_member_cb, NULL) != 0) {
-		fprintf(stderr, "[Server] Failed to list members for server id=%lld\n", (int64_t)server_id);
-	}
+void list_members(ServerContext* ctx, int client_fd, int64_t server_id) {
 }
 
 void list_joined_servers(ServerContext* ctx, int client_fd) {
-	if (ctx == NULL || ctx->db == NULL) {
-		fprintf(stderr, "[Server] Invalid list joined servers request\n");
-		return;
-	}
-
-	int client_index = find_client_index_by_fd(ctx, client_fd);
-	if (client_index < 0) {
-		fprintf(stderr, "[Server] Could not resolve client index for fd=%d\n", client_fd);
-		return;
-	}
-
-	ClientNode* client = &ctx->clients[client_index];
-	if (!client->is_authenticated) {
-		fprintf(stderr, "[Server] Unauthenticated client attempted SERVER_LIST_JOINED\n");
-		return;
-	}
-
-	JoinedServerReplyCtx reply_ctx = {
-		.client_fd = client_fd,
-		.send_failed = 0,
-	};
-
-	if (db_list_joined_servers(ctx->db, client->id, send_joined_server_cb, &reply_ctx) != 0) {
-		fprintf(stderr, "[Server] Failed to list joined servers for user id=%lld\n",
-			(int64_t)client->id);
-
-		TizcordPacket error_reply;
-		memset(&error_reply, 0, sizeof(error_reply));
-		error_reply.type = SERVER;
-		error_reply.payload.server.action = SERVER_LIST_JOINED;
-		error_reply.payload.server.status_code = -1;
-		write(client_fd, &error_reply, sizeof(error_reply));
-		return;
-	}
-
-	if (!reply_ctx.send_failed) {
-		TizcordPacket done_reply;
-		memset(&done_reply, 0, sizeof(done_reply));
-		done_reply.type = SERVER;
-		done_reply.payload.server.action = SERVER_LIST_JOINED;
-		done_reply.payload.server.status_code = 1;
-		done_reply.payload.server.server_id = -1;
-		write(client_fd, &done_reply, sizeof(done_reply));
-	}
 }
