@@ -95,8 +95,36 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
     return 0;
 }
 
-/* -------------- MESSAGE OPERATIONS ------------------ */
-int db_save_message(DbContext* db, int64_t channel_id, sqlite3_int64 user_id, const char* content) {
+int db_get_password_hash(DbContext* db, const char* username, char* hash_out, sqlite3_int64* user_id_out) {
+    const char* sql = "SELECT id, password_hash FROM users WHERE username = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare hash lookup");
+    }
+
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt);
+    int status = -1; 
+
+    if (rc == SQLITE_ROW) {
+        sqlite3_int64 id = sqlite3_column_int64(stmt, 0);
+        const unsigned char* stored_hash = sqlite3_column_text(stmt, 1);
+        if (stored_hash && hash_out) {
+            strcpy(hash_out, (const char*)stored_hash);
+            if (user_id_out) *user_id_out = id;
+            status = 0; 
+        }
+    } else if (rc != SQLITE_DONE) {
+        db_err(db, "Failed to execute hash lookup");
+    }
+
+    sqlite3_finalize(stmt);
+    return status;
+}
+
+int db_save_message(DbContext* db, sqlite3_int64 channel_id, sqlite3_int64 user_id, const char* content) {
     const char* sql = "INSERT INTO messages (channel_id, user_id, content) VALUES (?, ?, ?);";
     sqlite3_stmt* stmt;
     

@@ -19,9 +19,8 @@ DbContext* db_connect(const char* conninfo);
 void db_disconnect(DbContext* db);
 
 /* User */
-int db_create_user(DbContext* db, const char* username, const char* password_hash, int64_t* user_id_out);
-int db_get_user_credentials(DbContext* db, const char* username, int64_t* user_id_out,
-							char* password_hash_out, size_t password_hash_out_len);
+int db_create_user(DbContext* db, const char* username, const char* password_hash, sqlite3_int64* user_id_out);
+int db_get_password_hash(DbContext* db, const char* username, char* hash_out, sqlite3_int64* user_id_out);
 
 /* Server */
 int db_user_is_server_admin(DbContext* db, int64_t server_id, sqlite3_int64 user_id, int* is_admin_out);
@@ -43,7 +42,7 @@ int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, sqlite
 int db_delete_channel(DbContext* db, int64_t channel_id);
 
 /* Messages */
-int db_save_message(DbContext* db, int64_t channel_id, sqlite3_int64 user_id, const char* content);
+int db_save_message(DbContext* db, sqlite3_int64 channel_id, sqlite3_int64 user_id, const char* content);
 int db_load_history(DbContext* db, int64_t channel_id, int limit, MessageCallback msg_cb, void* userdata);
 int db_edit_message(DbContext* db, int64_t message_id, const char* new_content);
 int db_delete_message(DbContext* db, int64_t message_id);

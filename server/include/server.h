@@ -66,6 +66,7 @@ void run_server_loop(ServerContext* ctx);
 
 /* handle connections */
 int handle_new_connection(ServerContext* ctx);
+void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet);
 void *client_handler(void* arg);
 
 #endif
