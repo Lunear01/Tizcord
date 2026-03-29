@@ -61,6 +61,7 @@ typedef struct
     char description[80];
     char icon[4]; // emoji-like 2-char
     int member_count;
+    char member_names[MAX_USERS][MAX_NAME_LEN];
     UIChannel channels[UI_MAX_CHANNELS];
     int channel_count;
 } UIServer;
@@ -166,6 +167,11 @@ void seed_data()
     for (int i = 0; i < server_count; i++)
     {
         servers[i].id = i;
+        servers[0].member_count = 4;
+        strcpy(servers[0].member_names[0], "Alice_Admin");
+        strcpy(servers[0].member_names[1], "Bob_Gamer");
+        strcpy(servers[0].member_names[2], "Charlie_Dev");
+        strcpy(servers[0].member_names[3], "Diana_Design");
         strncpy(servers[i].name, sv[i].name, MAX_NAME_LEN - 1);
         strncpy(servers[i].description, sv[i].desc, 79);
         strncpy(servers[i].icon, sv[i].icon, 3);
@@ -735,31 +741,34 @@ int chat_input_len = 0;
 
 /* Width of the sidebar panel */
 #define SIDEBAR_W 20
+#define RIGHT_SIDEBAR_W 20
 
 void draw_chat(int rows, int cols)
 {
     erase();
     UIServer *sv = &servers[active_server];
 
-    /* ── Sidebar background (columns 0..SIDEBAR_W-1) ── */
+    // Calculate layout bounds
+    int main_x = SIDEBAR_W + 1;
+    int right_x = cols - RIGHT_SIDEBAR_W;
+    int main_w = (right_x - 1) - main_x; // Shrink main area to fit right sidebar
+
+    /* ── Left Sidebar (Channels) ── */
     attron(COLOR_PAIR(3));
     for (int r = 0; r < rows - 1; r++)
         mvhline(r, 0, ' ', SIDEBAR_W);
     attroff(COLOR_PAIR(3));
 
-    /* Server name header */
     attron(COLOR_PAIR(10) | A_BOLD);
     mvhline(0, 0, ' ', SIDEBAR_W);
     mvprintw(0, 1, " %-*.*s", SIDEBAR_W - 3, SIDEBAR_W - 3, sv->name);
     attroff(COLOR_PAIR(10) | A_BOLD);
 
-    /* "CHANNELS" label */
     attron(COLOR_PAIR(4));
     mvprintw(2, 2, "CHANNELS");
     attroff(COLOR_PAIR(4));
 
-    /* Channel list */
-    int ch_label_w = SIDEBAR_W - 5; /* room for " # " prefix + border */
+    int ch_label_w = SIDEBAR_W - 5; 
     for (int i = 0; i < sv->channel_count; i++)
     {
         int row = 4 + i * 2;
@@ -777,7 +786,6 @@ void draw_chat(int rows, int cols)
         }
     }
 
-    /* Bottom sidebar buttons */
     attron(COLOR_PAIR(9) | A_BOLD);
     mvprintw(rows - 3, 1, " << Servers");
     attroff(COLOR_PAIR(9) | A_BOLD);
@@ -786,43 +794,65 @@ void draw_chat(int rows, int cols)
     mvprintw(rows - 2, 1, " Logout");
     attroff(COLOR_PAIR(8) | A_BOLD);
 
-    /* Sidebar right border */
     attron(COLOR_PAIR(6));
     for (int r = 0; r < rows - 1; r++)
         mvaddch(r, SIDEBAR_W, ACS_VLINE);
     attroff(COLOR_PAIR(6));
 
-    /* ── Top bar (main area) ── */
-    int main_x = SIDEBAR_W + 1;
-    int main_w = cols - main_x;
 
+    /* ── Right Sidebar (Members) ── */
+    // Left border of the right sidebar
+    attron(COLOR_PAIR(6));
+    for (int r = 0; r < rows - 1; r++)
+        mvaddch(r, right_x - 1, ACS_VLINE);
+    attroff(COLOR_PAIR(6));
+
+    // Sidebar background
+    attron(COLOR_PAIR(3));
+    for (int r = 0; r < rows - 1; r++)
+        mvhline(r, right_x, ' ', RIGHT_SIDEBAR_W);
+    
+    // Header
+    attron(COLOR_PAIR(4));
+    mvprintw(2, right_x + 2, "MEMBERS - %d", sv->member_count);
+    attroff(COLOR_PAIR(4));
+
+    // List the members
+    for (int i = 0; i < sv->member_count && i < MAX_USERS; i++) {
+        attron(COLOR_PAIR(5) | A_BOLD);
+        mvprintw(4 + (i * 2), right_x + 2, "• %s", sv->member_names[i]);
+        attroff(COLOR_PAIR(5) | A_BOLD);
+    }
+    attroff(COLOR_PAIR(3));
+
+
+    /* ── Top bar (main area) ── */
     attron(COLOR_PAIR(10) | A_BOLD);
     mvhline(0, main_x, ' ', main_w);
     mvprintw(0, main_x + 1, " # %s", sv->channels[active_channel].name);
     if (current_user >= 0)
     {
         const char *uname = users[current_user].username;
-        int ux = cols - (int)strlen(uname) - 2;
+        int ux = right_x - (int)strlen(uname) - 2;
         if (ux > main_x + 1)
             mvprintw(0, ux, "%s ", uname);
     }
     attroff(COLOR_PAIR(10) | A_BOLD);
 
+
     /* ── Messages area ── */
     UIChannel *chan = &sv->channels[active_channel];
 
-    /* Clear message area */
     attron(COLOR_PAIR(1));
     for (int r = 1; r < rows - 2; r++)
         mvhline(r, main_x, ' ', main_w);
     attroff(COLOR_PAIR(1));
 
-    int msg_area = rows - 4; /* rows available for messages */
+    int msg_area = rows - 4; 
     int start = chan->msg_count > msg_area ? chan->msg_count - msg_area : 0;
-    int body_col = main_x + 20;       /* column where message body begins */
-    int body_w = cols - body_col - 1; /* available width for body text */
-    if (body_w < 1)
-        body_w = 1;
+    int body_col = main_x + 15;       
+    int body_w = main_w - 16; 
+    if (body_w < 1) body_w = 1;
 
     for (int i = start; i < chan->msg_count; i++)
     {
@@ -838,7 +868,7 @@ void draw_chat(int rows, int cols)
         attroff(COLOR_PAIR(4));
 
         attron(COLOR_PAIR(5) | A_BOLD);
-        mvprintw(row, main_x + 7, "%-12.*s", 12, m->sender);
+        mvprintw(row, main_x + 7, "%-7.*s", 7, m->sender);
         attroff(COLOR_PAIR(5) | A_BOLD);
 
         attron(COLOR_PAIR(1));
@@ -846,19 +876,18 @@ void draw_chat(int rows, int cols)
         attroff(COLOR_PAIR(1));
     }
 
-    /* ── Input separator ── */
+
+    /* ── Input Area ── */
     attron(COLOR_PAIR(6));
     mvhline(rows - 3, main_x, ACS_HLINE, main_w);
     attroff(COLOR_PAIR(6));
 
-    /* ── Input line ── */
     char prompt_buf[MAX_NAME_LEN + 4];
     snprintf(prompt_buf, sizeof(prompt_buf), "[#%s] ", sv->channels[active_channel].name);
     int prompt_len = strlen(prompt_buf);
     int input_col = main_x + 1 + prompt_len;
-    int input_w = cols - input_col - 1;
-    if (input_w < 1)
-        input_w = 1;
+    int input_w = main_w - prompt_len - 1;
+    if (input_w < 1) input_w = 1;
 
     attron(COLOR_PAIR(1));
     mvhline(rows - 2, main_x, ' ', main_w);
@@ -876,8 +905,7 @@ void draw_chat(int rows, int cols)
 
     /* Cursor */
     int cx = input_col + chat_input_len;
-    if (cx >= cols)
-        cx = cols - 1;
+    if (cx >= right_x) cx = right_x - 1;
     move(rows - 2, cx);
     refresh();
 }
