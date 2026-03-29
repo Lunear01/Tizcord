@@ -209,7 +209,7 @@ int db_get_server(DbContext* db, const char* name, int64_t* server_id_out){
     return -1; // Not found
 }
 
-int db_create_server(DbContext* db, const char* name, int64_t user_id, int64_t* server_id_out) {
+int db_create_server(DbContext* db, const char* name, int64_t user_id) {
     const char* sql_insert = "INSERT INTO servers (name) VALUES (?);";
     sqlite3_stmt* stmt_insert;
     
@@ -226,7 +226,7 @@ int db_create_server(DbContext* db, const char* name, int64_t user_id, int64_t* 
     }
     sqlite3_finalize(stmt_insert);
 
-    *server_id_out = sqlite3_last_insert_rowid(db->conn);
+    int64_t *server_id_out = sqlite3_last_insert_rowid(db->conn);
 
     // Add creator as admin member of the server
     return db_join_server(db, *server_id_out, user_id, true);

@@ -25,7 +25,7 @@ int db_get_password_hash(DbContext* db, const char* username, char* hash_out, in
 /* Server */
 int db_user_is_server_admin(DbContext* db, int64_t server_id, int64_t user_id, int* is_admin_out);
 int db_get_server_id(DbContext* db, const char* name, int64_t* server_id_out);
-int db_create_server(DbContext* db, const char* name, int64_t user_id, int64_t* server_id_out);
+int db_create_server(DbContext* db, const char* name, int64_t user_id);
 int db_join_server(DbContext* db, int64_t server_id, int64_t user_id, bool is_admin);
 int db_leave_server(DbContext* db, int64_t server_id, int64_t user_id);
 int db_delete_server(DbContext* db, int64_t server_id, int64_t user_id);
