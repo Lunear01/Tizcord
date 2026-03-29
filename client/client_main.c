@@ -9,19 +9,17 @@
 extern int client_socket;
 
 int main(int argc, char *argv[]) {
-    // Default connection settings
-    const char *ip_address = "127.0.0.1";
-    int port = 4242;
-
-    // Parse command line arguments if provided
-    if (argc >= 2) {
-        ip_address = argv[1];
-    }
-    if (argc >= 3) {
-        port = atoi(argv[2]);
+    // Check if both IP address and port are provided
+    if (argc < 3) {
+        fprintf(stderr, "No IP address or port given.\n");
+        fprintf(stderr, "Usage: %s [ip_address] [port]\n", argv[0]);
+        return EXIT_FAILURE;
     }
 
-    printf("Starting Client and Connecting to %s:%d...\n", ip_address, port);
+    // Parse command line arguments
+    const char *ip_address = argv[1];
+    int port = atoi(argv[2]);
+
     connect_to_server(ip_address, port);
 
     // Ensure we actually connected before starting the UI
@@ -30,10 +28,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Pass control to the NCURSES User Interface!
     start_ui();
 
-    // Clean up when the UI loop breaks (user quits)
+    // Gentle closing connection
     if (client_socket != -1) {
         close(client_socket);
     }

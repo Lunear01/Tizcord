@@ -28,6 +28,7 @@ typedef enum
     SCREEN_SIGNUP,
     SCREEN_SERVERS,
     SCREEN_CHAT,
+    SCREEN_COMMAND
 } Screen;
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -76,6 +77,10 @@ int server_count = 0;
 Screen current_screen = SCREEN_LOGIN;
 int active_server = -1;
 int active_channel = 0;
+
+Screen previous_screen = SCREEN_LOGIN;
+char cmd_input[MAX_MSG_LEN] = {0};
+int cmd_input_len = 0;
 
 // ─── Seed Data ───────────────────────────────────────────────────────────────
 
@@ -669,7 +674,7 @@ void draw_server_list(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  F1: Command Line");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -1028,8 +1033,77 @@ void ui_update_server_state(TizcordPacket *packet) {
     (void)packet;
 }
 
+// ─── Screen: COMMAND LINE ────────────────────────────────────────────────────
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+void draw_command(int rows, int cols)
+{
+    erase(); // Ensures nothing is in the background
+
+    int bw = 60; // Box width
+    int bh = 3;  // Box height
+    int by = (rows - bh) / 2;
+    int bx = (cols - bw) / 2;
+
+    if (bx < 0) bx = 0;
+    if (by < 0) by = 0;
+
+    // Draw the centered box
+    draw_box(by, bx, bh, bw, 5);
+
+    // Draw the label above the box
+    attron(COLOR_PAIR(4));
+    mvprintw(by - 1, bx, "Command Line (ESC to cancel, ENTER to submit)");
+    attroff(COLOR_PAIR(4));
+
+    // Draw the input prompt and current text
+    attron(COLOR_PAIR(1));
+    mvprintw(by + 1, bx + 2, "> %s", cmd_input);
+    attroff(COLOR_PAIR(1));
+
+    // Place the blinking cursor at the end of the input
+    move(by + 1, bx + 4 + cmd_input_len);
+    refresh();
+}
+
+void handle_command_input(int ch)
+{
+    switch (ch)
+    {
+        case 27: // ESC key
+            // Cancel and return to previous screen
+            current_screen = previous_screen;
+            break;
+
+        case '\n':
+        case KEY_ENTER:
+            // TODO: Process the actual command text here if needed!
+            
+            // Clear the input and return to the previous screen
+            cmd_input[0] = '\0';
+            cmd_input_len = 0;
+            current_screen = previous_screen;
+            break;
+
+        case KEY_BACKSPACE:
+        case 127:
+            // Delete character
+            if (cmd_input_len > 0)
+                cmd_input[--cmd_input_len] = '\0';
+            break;
+
+        default:
+            // Type character
+            if (ch >= 32 && ch < 127 && cmd_input_len < MAX_MSG_LEN - 1)
+            {
+                cmd_input[cmd_input_len++] = (char)ch;
+                cmd_input[cmd_input_len] = '\0';
+            }
+            break;
+    }
+}
+
+// ─── Main Network & UI Loop ──────────────────────────────────────────────────
+
 // Process incoming network data
 void process_network_packet(TizcordPacket *packet) {
     switch (packet->type) {
@@ -1083,6 +1157,7 @@ void start_ui(void)
         case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
         case SCREEN_SERVERS: draw_server_list(rows, cols); break;
         case SCREEN_CHAT: draw_chat(rows, cols); break;
+        case SCREEN_COMMAND: draw_command(rows, cols); break; // FIXED warning
     }
 
     // --- SINGLE THREADED EVENT LOOP ---
@@ -1108,7 +1183,7 @@ void start_ui(void)
             continue; // Handle interrupt signals cleanly
         }
 
-        int needs_redraw = 0;
+        int needs_redraw = 0; // FIXED scoping issue
 
         // --- CHECK NETWORK ---
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
@@ -1133,12 +1208,24 @@ void start_ui(void)
                     goto exit_ui_loop; // Break out of nested loops cleanly
                 }
 
+                // Global F1 intercept to toggle command mode
+                if (ch == KEY_F(1) && current_screen != SCREEN_COMMAND) {
+                    previous_screen = current_screen;
+                    current_screen = SCREEN_COMMAND;
+                    cmd_input[0] = '\0';
+                    cmd_input_len = 0;
+                    needs_redraw = 1;
+                    continue;
+                }
+
+                // Route input to the active screen
                 switch (current_screen)
                 {
                     case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
                     case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
                     case SCREEN_SERVERS: handle_server_input(ch); break;
                     case SCREEN_CHAT: handle_chat_input(ch); break;
+                    case SCREEN_COMMAND: handle_command_input(ch); break;
                 }
                 needs_redraw = 1;
             }
@@ -1153,6 +1240,7 @@ void start_ui(void)
                 case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
                 case SCREEN_SERVERS: draw_server_list(rows, cols); break;
                 case SCREEN_CHAT: draw_chat(rows, cols); break;
+                case SCREEN_COMMAND: draw_command(rows, cols); break;
             }
         }
     }
