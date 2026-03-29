@@ -168,7 +168,7 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
             break;
         case SERVER:
             printf("[Server] Received SERVER packet\n");
-            handle_server_packet(ctx, client->socket_fd, packet);
+            handle_server_packet(ctx, client, packet);
             break;
         case CHANNEL:
             printf("[Server] Received CHANNEL packet\n");
@@ -180,4 +180,6 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
             printf("[Server] Unknown packet type %d received!\n", packet->type);
             break;
     }
+
+    return;
 }

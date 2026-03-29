@@ -42,7 +42,7 @@ void db_disconnect(DbContext* db) {
 }
 
 /* -------------- HELPER FUNCTIONS ------------------ */
-int db_user_is_server_admin(DbContext* db, int64_t server_id, sqlite3_int64 user_id, int* is_admin_out) {
+int db_user_is_server_admin(DbContext* db, int64_t server_id, int64_t user_id, int* is_admin_out) {
     const char* sql = "SELECT is_admin FROM server_members WHERE server_id = ? AND user_id = ?;";
     sqlite3_stmt* stmt;
 
@@ -95,7 +95,7 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
     return 0;
 }
 
-int db_get_password_hash(DbContext* db, const char* username, char* hash_out, sqlite3_int64* user_id_out) {
+int db_get_password_hash(DbContext* db, const char* username, char* hash_out, int64_t* user_id_out) {
     const char* sql = "SELECT id, password_hash FROM users WHERE username = ?;";
     sqlite3_stmt* stmt;
     
@@ -109,7 +109,7 @@ int db_get_password_hash(DbContext* db, const char* username, char* hash_out, sq
     int status = -1; 
 
     if (rc == SQLITE_ROW) {
-        sqlite3_int64 id = sqlite3_column_int64(stmt, 0);
+        int64_t id = sqlite3_column_int64(stmt, 0);
         const unsigned char* stored_hash = sqlite3_column_text(stmt, 1);
         if (stored_hash && hash_out) {
             strcpy(hash_out, (const char*)stored_hash);
@@ -124,7 +124,7 @@ int db_get_password_hash(DbContext* db, const char* username, char* hash_out, sq
     return status;
 }
 
-int db_save_message(DbContext* db, sqlite3_int64 channel_id, sqlite3_int64 user_id, const char* content) {
+int db_save_message(DbContext* db, int64_t channel_id, sqlite3_int64 user_id, const char* content) {
     const char* sql = "INSERT INTO messages (channel_id, user_id, content) VALUES (?, ?, ?);";
     sqlite3_stmt* stmt;
     
@@ -209,7 +209,7 @@ int db_get_server(DbContext* db, const char* name, int64_t* server_id_out){
     return -1; // Not found
 }
 
-int db_create_server(DbContext* db, const char* name, int64_t user_id, sqlite3_int64* server_id_out) {
+int db_create_server(DbContext* db, const char* name, int64_t user_id) {
     const char* sql_insert = "INSERT INTO servers (name) VALUES (?);";
     sqlite3_stmt* stmt_insert;
     
@@ -226,13 +226,13 @@ int db_create_server(DbContext* db, const char* name, int64_t user_id, sqlite3_i
     }
     sqlite3_finalize(stmt_insert);
 
-    *server_id_out = sqlite3_last_insert_rowid(db->conn);
+    int64_t *server_id_out = sqlite3_last_insert_rowid(db->conn);
 
     // Add creator as admin member of the server
     return db_join_server(db, *server_id_out, user_id, true);
 }
 
-int db_join_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id, bool is_admin){
+int db_join_server(DbContext* db, int64_t server_id, int64_t user_id, bool is_admin){
     const char* sql = "INSERT INTO server_members (server_id, user_id, is_admin) VALUES (?, ?, ?);";
     sqlite3_stmt* stmt;
     
@@ -254,7 +254,7 @@ int db_join_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id, bool
     return 0;
 }
 
-int db_leave_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id){
+int db_leave_server(DbContext* db, int64_t server_id, int64_t user_id){
     const char* sql = "DELETE FROM server_members WHERE server_id = ? AND user_id = ?;";
     sqlite3_stmt* stmt;
     
@@ -275,7 +275,7 @@ int db_leave_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id){
     return 0;
 }
 
-int db_delete_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id){
+int db_delete_server(DbContext* db, int64_t server_id, int64_t user_id){
     if (db_user_is_server_admin(db, server_id, user_id, &(int){0}) == -1) {
         return -1; // User is not a member or not found
     }
@@ -299,7 +299,7 @@ int db_delete_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id){
     return 0;
 }
 
-int db_edit_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id, const char* new_name){
+int db_edit_server(DbContext* db, int64_t server_id, int64_t user_id, const char* new_name){
     if (db_user_is_server_admin(db, server_id, user_id, &(int){0}) == -1) {
         return -1; // User is not a member or not found
     }
@@ -324,7 +324,7 @@ int db_edit_server(DbContext* db, int64_t server_id, sqlite3_int64 user_id, cons
     return 0;
 }
 
-int db_list_servers(DbContext* db, ServerCallback server_cb, void* userdata) {
+int db_list_servers(DbContext* db, ServerCallback server_cb, void *userdata) {
     const char* sql = "SELECT id, name FROM servers ORDER BY name ASC;";
     sqlite3_stmt* stmt;
 
@@ -445,7 +445,7 @@ int db_list_joined_servers(DbContext* db, int64_t user_id, ServerCallback server
     return 0;
 }
 
-int db_kick_server_member(DbContext* db, int64_t server_id, sqlite3_int64 user_id) {
+int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id) {
     if (db_user_is_server_admin(db, server_id, user_id, &(int){0}) == -1) {
         return -1; // User is not a member or not found
     }

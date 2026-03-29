@@ -10,6 +10,7 @@
 #define MAX_NAME_LEN 32
 #define PASSWORD_LEN 64
 #define MESSAGE_LEN 512
+#define SYSTEM_MESSAGE_LEN 256
 
 typedef enum {
     AUTH,
@@ -17,6 +18,7 @@ typedef enum {
     SERVER,
     CHANNEL,
     SOCIAL,
+    SYSTEM,
 } PacketType;
 
 typedef enum { 
@@ -24,6 +26,24 @@ typedef enum {
     STATUS_OFFLINE, 
     STATUS_AWAY 
 } UserStatus;
+
+typedef enum {
+    RESP_OK = 0,
+    RESP_DONE = 1,
+    RESP_ERR_INVALID = -1,
+    RESP_ERR_UNAUTHORIZED = -2,
+    RESP_ERR_NOT_FOUND = -3,
+    RESP_ERR_CONFLICT = -4,
+    RESP_ERR_DB = -5,
+    RESP_ERR_INTERNAL = -6,
+} ResponseCode;
+
+typedef enum {
+    LIST_FRAME_SINGLE,
+    LIST_FRAME_START, 
+    LIST_FRAME_MIDDLE,
+    LIST_FRAME_END 
+} ListFrameType;
 
 // --- Action Flags ---
 // These help the server know exactly what to do with the packet
@@ -81,8 +101,8 @@ typedef enum {
 // --- Payloads ---
 typedef struct {
     SystemAction action;
-    int status_code; 
-    char message[256];
+    int status_code;
+    char message[SYSTEM_MESSAGE_LEN];
 } SystemPayload;
 
 typedef struct {
@@ -103,7 +123,7 @@ typedef struct {
 typedef struct {
     ServerAction action;
     int64_t server_id;
-    int64_t target_user_id; // used by member-targeted actions (e.g., kick)
+    int64_t target_user_id; // used for actions like kick
     int status_code;
     char server_name[MAX_NAME_LEN];
 } ServerPayload;
@@ -129,6 +149,10 @@ typedef struct {
 typedef struct {
     PacketType type;
     int64_t sender_id;
+    int32_t list_id;      // 0 for non-list packets; same id across one list stream
+    int32_t list_index;   // 0-based item index; -1 when not applicable
+    int32_t list_total;   // total items if known, otherwise -1
+    ListFrameType list_frame;
     union {
         SystemPayload system;
         AuthPayload auth;
