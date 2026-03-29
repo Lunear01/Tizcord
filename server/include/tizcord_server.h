@@ -6,6 +6,7 @@ void handle_server_packet(ServerContext* ctx, int client_fd, TizcordPacket* pack
 void join_tizcord_server(ServerContext* ctx, int client_index,  sqlite3_int64 server_id);
 void leave_tizcord_server(ServerContext* ctx, int client_index, sqlite3_int64 server_id);
 void create_tizcord_server(ServerContext* ctx, const char* server_name, int creator_fd);
+void get_tizcord_server_info(ServerContext* ctx, int client_fd, sqlite3_int64 server_id);
 void delete_tizcord_server(ServerContext* ctx, const char* server_id);
 void list_tizcord_servers(ServerContext* ctx, const char* server_name);
 void list_channels(ServerContext* ctx, int client_fd, sqlite3_int64 server_id);

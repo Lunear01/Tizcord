@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS "server_members" (
     id INTEGER PRIMARY KEY,
     server_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
-    is_admin INTEGER DEFAULT 0,
+    is_admin BOOLEAN DEFAULT FALSE,
     created_at INTEGER DEFAULT (CAST(strftime('%s', 'now') AS INTEGER)),
     FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

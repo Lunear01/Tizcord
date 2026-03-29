@@ -1,7 +1,9 @@
 #include "../shared/protocol.h"
 #include "include/server.h"
 #include "include/auth.h"
+#include "include/tizcord_server.h"
 #include "include/tizcord_chat.h"
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,6 +160,7 @@ int handle_new_connection(ServerContext *ctx) {
 void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet) {
     switch (packet->type) {
         case AUTH:
+            printf("[Server] Received AUTH packet\n");
             handle_auth_packet(ctx, client->socket_fd, packet);
             break;
         case DM:
@@ -165,6 +168,7 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
             break;
         case SERVER:
             printf("[Server] Received SERVER packet\n");
+            handle_server_packet(ctx, client->socket_fd, packet);
             break;
         case CHANNEL:
             printf("[Server] Received CHANNEL packet\n");

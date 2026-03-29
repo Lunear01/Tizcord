@@ -4,7 +4,7 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <sqlite3.h>
+#include <stdint.h>
 
 #define MAX_PACKET_SIZE 1024
 #define MAX_NAME_LEN 32
@@ -17,7 +17,6 @@ typedef enum {
     SERVER,
     CHANNEL,
     SOCIAL,
-    STATUS
 } PacketType;
 
 typedef enum { 
@@ -80,6 +79,11 @@ typedef enum {
 } SocialAction;
 
 // --- Payloads ---
+typedef struct {
+    SystemAction action;
+    int status_code; 
+    char message[256];
+} SystemPayload;
 
 typedef struct {
     AuthAction action;
@@ -92,42 +96,48 @@ typedef struct {
     DMAction action;
     int status_code;
     int recipient_id; // user ID of the recipient 
-    sqlite3_int64 message_id;
+    int64_t message_id;
     char message[MESSAGE_LEN]; // The actual text content
 } DMPayload;
 
 typedef struct {
     ServerAction action;
-    sqlite3_int64 server_id;
+    int64_t server_id;
+    int64_t target_user_id; // used by member-targeted actions (e.g., kick)
     int status_code;
     char server_name[MAX_NAME_LEN];
 } ServerPayload;
 
 typedef struct {
     ChannelAction action;
-    sqlite3_int64 server_id;
+    int64_t server_id;
     int status_code;
-    sqlite3_int64 channel_id;
+    int64_t channel_id;
     char channel_name[MAX_NAME_LEN];
-    sqlite3_int64 message_id;
+    int64_t message_id;
     char message[MESSAGE_LEN];
 } ChannelPayload;
 
 typedef struct {
-    UserStatus status; // for message status
-} StatusPayload;
+    UserStatus status; 
+    SocialAction action;
+    int status_code;
+    int64_t target_user_id; 
+    char target_username[MAX_NAME_LEN]; 
+} SocialPayload;
 
 typedef struct {
     PacketType type;
-    sqlite3_int64 sender_id;
+    int64_t sender_id;
     union {
+        SystemPayload system;
         AuthPayload auth;
         DMPayload dm;
         ServerPayload server;
         ChannelPayload channel;
-        StatusPayload status;
+        SocialPayload social;
     } payload; 
-    long long timestamp;
+    int64_t timestamp;
 } TizcordPacket;
 
 #endif
