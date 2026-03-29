@@ -962,9 +962,9 @@ void handle_chat_input(int ch)
 // ─── Network Integration (Thread-Safe Callbacks) ─────────────────────────────
 
 void ui_handle_auth_response(TizcordPacket *packet) {
-    if (packet->payload.auth.action == AUTH_REGISTER) {
+    if (packet->payload.auth.action == AUTH_REGISTER || packet->payload.auth.action == AUTH_LOGIN) {
         if (packet->payload.auth.status_code == 0) {
-            // Network Register succeeded! 
+            // Network Register/Login succeeded! 
             // Proceed into the mock local state to trick the UI flow
             strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
             strncpy(users[user_count].password, auth.password, MAX_PASS_LEN - 1);
@@ -977,11 +977,11 @@ void ui_handle_auth_response(TizcordPacket *packet) {
             auth.field = 0;
             current_screen = SCREEN_SERVERS;
             
-            strcpy(auth.success, "Registration Successful!");
+            strcpy(auth.success, "Authentication Successful!");
             auth.error[0] = '\0';
         } else {
             // Server rejected or network died
-            strcpy(auth.error, "Username taken or Network Error.");
+            strcpy(auth.error, "Invalid Username or Password.");
             auth.success[0] = '\0';
         }
     }

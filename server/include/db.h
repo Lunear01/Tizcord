@@ -10,6 +10,7 @@ void db_disconnect(DbContext* db);
 
 /* User */
 int db_create_user(DbContext* db, const char* username, const char* password_hash, sqlite3_int64* user_id_out);
+int db_get_password_hash(DbContext* db, const char* username, char* hash_out, sqlite3_int64* user_id_out);
 
 /* Server */
 int db_get_or_create_server(DbContext* db, const char* name, sqlite3_int64* server_id_out);
