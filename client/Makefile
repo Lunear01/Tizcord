@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude -I../shared
-LDFLAGS = -lncurses -lpthread
+LDFLAGS = -lncurses
 
 SHARED_OBJ = ../shared/packet_helper.o
 

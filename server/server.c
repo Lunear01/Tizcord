@@ -173,6 +173,7 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
             break;
         case CHANNEL:
             printf("[Server] Received CHANNEL packet\n");
+            handle_chat_packet(ctx, packet, client->socket_fd);
             break;
         case SOCIAL :
             printf("[Server] Received SOCIAL packet\n");

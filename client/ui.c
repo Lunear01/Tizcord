@@ -53,6 +53,7 @@ typedef struct
     char name[MAX_NAME_LEN];
     Message messages[MAX_MESSAGES];
     int msg_count;
+    int64_t id;
 } UIChannel;
 
 typedef struct
@@ -99,115 +100,8 @@ int cmd_input_len = 0;
 
 void seed_data()
 {
-    // Seed users
-    strcpy(users[0].username, "alice");
-    strcpy(users[0].password, "pass");
-    users[0].server_id = 0;
-    strcpy(users[1].username, "bob");
-    strcpy(users[1].password, "pass");
-    users[1].server_id = -1;
-    user_count = 2;
-
-    // Seed servers
-    struct
-    {
-        const char *name;
-        const char *desc;
-        const char *icon;
-        int members;
-    } sv[] = {
-        {"GamersHQ", "All things gaming", "GG", 142},
-        {"DevCorner", "Code, debug, repeat", "{}", 389},
-        {"MusicLounge", "Beats & vibes 24/7", "~j", 210},
-        {"StudyGroup", "Focus & productivity", "::", 98},
-        {"Foodies Unite", "Recipes, reviews & eats", ">>", 176},
-        {"Crypto Talk", "Markets & blockchain", "$$", 503},
-    };
-
-    struct
-    {
-        int s;
-        const char *ch;
-    } channels_data[] = {
-        {0, "general"},
-        {0, "lfg"},
-        {0, "clips"},
-        {1, "general"},
-        {1, "help"},
-        {1, "projects"},
-        {1, "off-topic"},
-        {2, "general"},
-        {2, "sharing"},
-        {2, "requests"},
-        {3, "general"},
-        {3, "study-room"},
-        {3, "resources"},
-        {4, "general"},
-        {4, "recipes"},
-        {4, "restaurants"},
-        {5, "general"},
-        {5, "news"},
-        {5, "trading"},
-    };
-
-    struct
-    {
-        int s;
-        int c;
-        const char *from;
-        const char *msg;
-    } msgs[] = {
-        {0, 0, "alice", "Welcome to GamersHQ!"},
-        {0, 0, "bob", "gg ez"},
-        {0, 0, "carol", "Anyone up for ranked?"},
-        {0, 1, "dave", "LFG Valorant ranked, plat+"},
-        {0, 1, "alice", "I'm in, inv me"},
-        {1, 0, "carol", "Just shipped v2.0 today!"},
-        {1, 0, "alice", "Let's gooo"},
-        {1, 1, "bob", "Getting seg fault on line 42 lol"},
-        {1, 1, "dave", "Have you tried turning it off and on?"},
-        {2, 0, "eve", "new playlist just dropped"},
-        {2, 0, "frank", "link??"},
-        {3, 0, "alice", "pomodoro session starting in 5"},
-        {3, 1, "bob", "I'll join, need to finish this essay"},
-        {4, 0, "carol", "made pasta carbonara tonight"},
-        {5, 0, "dave", "BTC above 100k again"},
-        {5, 0, "eve", "hodl"},
-    };
-
-    server_count = 6;
-    for (int i = 0; i < server_count; i++)
-    {
-        servers[i].id = i;
-        servers[0].member_count = 4;
-        strcpy(servers[0].member_names[0], "Alice_Admin");
-        strcpy(servers[0].member_names[1], "Bob_Gamer");
-        strcpy(servers[0].member_names[2], "Charlie_Dev");
-        strcpy(servers[0].member_names[3], "Diana_Design");
-        strncpy(servers[i].name, sv[i].name, MAX_NAME_LEN - 1);
-        strncpy(servers[i].description, sv[i].desc, 79);
-        strncpy(servers[i].icon, sv[i].icon, 3);
-        servers[i].member_count = sv[i].members;
-        servers[i].channel_count = 0;
-    }
-    for (int i = 0; i < (int)(sizeof(channels_data) / sizeof(channels_data[0])); i++)
-    {
-        int s = channels_data[i].s;
-        int c = servers[s].channel_count++;
-        strncpy(servers[s].channels[c].name, channels_data[i].ch, MAX_NAME_LEN - 1);
-        servers[s].channels[c].msg_count = 0;
-    }
-    for (int i = 0; i < (int)(sizeof(msgs) / sizeof(msgs[0])); i++)
-    {
-        UIServer *sv2 = &servers[msgs[i].s];
-        UIChannel *ch = &sv2->channels[msgs[i].c];
-        if (ch->msg_count >= MAX_MESSAGES)
-            continue;
-        Message *m = &ch->messages[ch->msg_count++];
-        strncpy(m->sender, msgs[i].from, MAX_NAME_LEN - 1);
-        strncpy(m->body, msgs[i].msg, MAX_MSG_LEN - 1);
-        m->ts = time(NULL) - (50 - i) * 120;
-    }
+  user_count = 0;
+  server_count = 0; 
 }
 
 // ─── Color Pairs ─────────────────────────────────────────────────────────────
@@ -722,10 +616,19 @@ void handle_server_input(int ch)
         break;
     case '\n':
     case KEY_ENTER:
+        if (server_count <= 0) {
+                break; 
+            }
         active_server = server_cursor;
         active_channel = 0;
         users[current_user].server_id = active_server;
         current_screen = SCREEN_CHAT;
+
+        join_server(servers[active_server].id);
+
+        // Ask the server for the live channels and members
+        request_server_channels(servers[active_server].id);
+        request_server_members(servers[active_server].id);
         break;
     case 27: /* ESC = logout */
         current_user = -1;
@@ -942,20 +845,16 @@ void handle_chat_input(int ch)
         active_channel = (active_channel + 1) % sv->channel_count;
         chat_input[0] = '\0';
         chat_input_len = 0;
+        request_channel_history(sv->channels[active_channel].id);
         break;
 
     case '\n':
     case KEY_ENTER:
         if (chat_input_len > 0)
         {
-            UIChannel *c = &sv->channels[active_channel];
-            if (c->msg_count < MAX_MESSAGES)
-            {
-                Message *m = &c->messages[c->msg_count++];
-                strncpy(m->sender, users[current_user].username, MAX_NAME_LEN - 1);
-                strncpy(m->body, chat_input, MAX_MSG_LEN - 1);
-                m->ts = time(NULL);
-            }
+            send_channel_message(sv->channels[active_channel].id, chat_input);
+
+            // Clear the input box
             chat_input[0] = '\0';
             chat_input_len = 0;
         }
@@ -1039,6 +938,8 @@ void ui_handle_auth_response(TizcordPacket *packet) {
             auth.password[0] = '\0';
             auth.field = 0;
             current_screen = SCREEN_SERVERS;
+
+            list_all_servers_request();
             
             strcpy(auth.success, "Authentication Successful!");
             auth.error[0] = '\0';
@@ -1048,22 +949,34 @@ void ui_handle_auth_response(TizcordPacket *packet) {
             auth.success[0] = '\0';
         }
     }
+    
 }
 
 void ui_receive_channel_message(TizcordPacket *packet) {
-    // For now, we'll map the incoming message directly to the active server/channel
-    // In a full implementation, you'd match packet->payload.channel.server_id
     if (active_server >= 0 && active_server < server_count) {
         UIServer *sv = &servers[active_server];
         
-        // Extract channel index safely
-        int c_idx = (int)(intptr_t)packet->payload.channel.channel_id;
-        
-        if (c_idx >= 0 && c_idx < sv->channel_count) {
-            UIChannel *c = &sv->channels[c_idx];
+        // Ensure we are appending to the channel the user is currently viewing
+        if (active_channel >= 0 && active_channel < sv->channel_count) {
+            UIChannel *c = &sv->channels[active_channel];
+            
+            // Clear the chat if this is the start of a history payload
+            if (packet->list_frame == LIST_FRAME_START) {
+                c->msg_count = 0;
+                return;
+            }
+            if (packet->list_frame == LIST_FRAME_END) return;
+
             if (c->msg_count < MAX_MESSAGES) {
                 Message *m = &c->messages[c->msg_count++];
-                snprintf(m->sender, MAX_NAME_LEN, "%lld", (long long)packet->sender_id);
+                
+                // Extract username from channel_name field (as repurposed in the backend)
+                if (strlen(packet->payload.channel.channel_name) > 0) {
+                    strncpy(m->sender, packet->payload.channel.channel_name, MAX_NAME_LEN - 1);
+                } else {
+                    snprintf(m->sender, MAX_NAME_LEN, "%lld", (long long)packet->sender_id); // Fallback
+                }
+                
                 strncpy(m->body, packet->payload.channel.message, MAX_MSG_LEN - 1);
                 m->ts = packet->timestamp;
             }
@@ -1087,35 +1000,74 @@ void ui_receive_dm_message(TizcordPacket *packet) {
 }
 
 void ui_update_server_state(TizcordPacket *packet) {
-    if (packet == NULL) {
+    if (packet == NULL) return;
+
+    // Refresh the list when a server is successfully created
+    if (packet->payload.server.action == SERVER_CREATE) {
+        if (packet->payload.server.status_code == 0) { 
+            list_joined_servers_request(); 
+        }
         return;
     }
 
-    if (packet->payload.server.action != SERVER_LIST_JOINED) {
-        return;
-    }
+    if (packet->payload.server.action == SERVER_LIST_JOINED || 
+        packet->payload.server.action == SERVER_LIST) {
+        // Reset count if this is the beginning of a list or a single item
+        if (packet->list_frame == LIST_FRAME_START || packet->list_frame == LIST_FRAME_SINGLE) {
+            server_count = 0; 
+        } 
+        
+        // Extract the data for START, MIDDLE, END, and SINGLE (if the list isn't empty)
+        if (packet->list_total > 0 && server_count < UI_MAX_SERVERS) {
+            UIServer *sv = &servers[server_count++];
+            memset(sv, 0, sizeof(*sv));
+            sv->id = packet->payload.server.server_id;
+            sv->member_count = packet->payload.server.member_count;
+            strncpy(sv->name, packet->payload.server.server_name, MAX_NAME_LEN - 1);
+            strncpy(sv->description, "Public Server", sizeof(sv->description) - 1);
+            strncpy(sv->icon, "[]", sizeof(sv->icon) - 1);
+        }
+    } 
+    else if (packet->payload.server.action == SERVER_LIST_CHANNELS) {
+        if (active_server >= 0 && active_server < server_count) {
+            UIServer *sv = &servers[active_server];
+            
+            if (packet->list_frame == LIST_FRAME_START || packet->list_frame == LIST_FRAME_SINGLE) {
+                sv->channel_count = 0;
+            } 
+            
+            if (packet->list_total > 0 && sv->channel_count < UI_MAX_CHANNELS) {
+                int c_idx = sv->channel_count++;
+                strncpy(sv->channels[c_idx].name, packet->payload.server.server_name, MAX_NAME_LEN - 1);
+                // Note: client_helper packs the channel ID into the server_id field for this specific action
+                sv->channels[c_idx].id = packet->payload.server.server_id; 
+                sv->channels[c_idx].msg_count = 0;
+            }
 
-    if (packet->payload.server.status_code == 0) {
-        int incoming_id = (int)packet->payload.server.server_id;
-
-        for (int i = 0; i < server_count; i++) {
-            if (servers[i].id == incoming_id) {
-                return;
+            // Trigger history request once the list finishes loading
+            if (packet->list_frame == LIST_FRAME_END || packet->list_frame == LIST_FRAME_SINGLE) {
+                if (sv->channel_count > 0 && active_channel < sv->channel_count) {
+                    request_channel_history(sv->channels[active_channel].id);
+                }
             }
         }
-
-        if (server_count >= UI_MAX_SERVERS) {
-            return;
+    }
+    else if (packet->payload.server.action == SERVER_LIST_MEMBERS) {
+        if (active_server >= 0 && active_server < server_count) {
+            UIServer *sv = &servers[active_server];
+            
+            if (packet->list_frame == LIST_FRAME_START || packet->list_frame == LIST_FRAME_SINGLE) {
+                sv->member_count = 0;
+            } 
+            
+            if (packet->list_total > 0 && sv->member_count < MAX_USERS) {
+                int m_idx = sv->member_count++;
+                strncpy(sv->member_names[m_idx], packet->payload.server.server_name, MAX_NAME_LEN - 1);
+            }
         }
-
-        UIServer *sv = &servers[server_count++];
-        memset(sv, 0, sizeof(*sv));
-        sv->id = incoming_id;
-        strncpy(sv->name, packet->payload.server.server_name, MAX_NAME_LEN - 1);
-        strncpy(sv->description, "Joined server", sizeof(sv->description) - 1);
-        strncpy(sv->icon, "[]", sizeof(sv->icon) - 1);
     }
 }
+
 
 // ─── Screen: COMMAND LINE ────────────────────────────────────────────────────
 
@@ -1184,6 +1136,33 @@ void handle_command_input(int ch)
                 if (strlen(target_username) > 0) {
                     accept_friend_request(target_username);
                 }
+            } else if (strncmp(cmd_input, "/createserver ", 14) == 0) {
+                char server_name[MAX_NAME_LEN] = {0};
+                strncpy(server_name, cmd_input + 14, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(server_name) > 0 && server_name[strlen(server_name) - 1] == ' ') {
+                    server_name[strlen(server_name) - 1] = '\0';
+                }
+                
+                if (strlen(server_name) > 0) {
+                    create_server(server_name);
+                }
+            } else if (strncmp(cmd_input, "/createchannel ", 15) == 0) {
+                // Ensure we are currently viewing a valid server
+                if (active_server >= 0 && active_server < server_count) {
+                    char channel_name[MAX_NAME_LEN] = {0};
+                    strncpy(channel_name, cmd_input + 15, MAX_NAME_LEN - 1);
+                    
+                    // Strip trailing spaces
+                    while (strlen(channel_name) > 0 && channel_name[strlen(channel_name) - 1] == ' ') {
+                        channel_name[strlen(channel_name) - 1] = '\0';
+                    }
+                    
+                    if (strlen(channel_name) > 0) {
+                        create_channel(servers[active_server].id, channel_name);
+                    }
+                }
             }
 
             // Clear the input and return to the previous screen
@@ -1222,6 +1201,10 @@ void process_network_packet(TizcordPacket *packet) {
                 ui_edit_channel_message(packet);
             } else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
                 ui_delete_channel_message(packet);
+            } else if (packet->payload.channel.action == CHANNEL_CREATE) {
+                if (packet->payload.channel.status_code == 0 && active_server >= 0) {
+                    request_server_channels(servers[active_server].id);
+                }
             }
             break;
         case DM:
@@ -1349,7 +1332,7 @@ void handle_friends_input(int ch) {
     switch (ch) {
         case '\t':
             current_screen = SCREEN_SERVERS;
-            list_joined_servers_request();
+            list_all_servers_request();
             break;
         case '/':
             previous_screen = current_screen;

@@ -5,12 +5,39 @@
 #include "../include/db.h"
 #include "../include/tizcord_channel.h"
 #include "../include/tizcord_server.h"
+#include "../shared/packet_helper.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sqlite3.h>
+
+typedef struct {
+    int client_fd;
+    int32_t current_index;
+    int32_t list_id;
+    int64_t channel_id;
+} MessageHistoryContext;
+
+static void message_history_cb(int64_t msg_id, const char* username, const char* content, int64_t timestamp, void* userdata) {
+    MessageHistoryContext *ctx = (MessageHistoryContext *)userdata;
+    TizcordPacket packet = create_base_packet(CHANNEL);
+    
+    packet.payload.channel.action = CHANNEL_MESSAGE;
+    packet.list_id = ctx->list_id;
+    packet.list_index = ctx->current_index++;
+    packet.list_frame = LIST_FRAME_MIDDLE;
+    
+    packet.payload.channel.channel_id = ctx->channel_id;
+    packet.payload.channel.message_id = msg_id;
+    packet.timestamp = timestamp;
+
+    strncpy(packet.payload.channel.channel_name, username, MAX_NAME_LEN - 1);
+    strncpy(packet.payload.channel.message, content, MESSAGE_LEN - 1);
+    
+    write(ctx->client_fd, &packet, sizeof(TizcordPacket));
+}
 
 void channel_broadcast(ServerContext *ctx, sqlite3_int64 channel_id, const char *packet, size_t packet_size, int sender_fd) {
     (void)channel_id; // Will be used later to filter by specific channels
@@ -38,20 +65,47 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         printf("[Chat] Broadcast request from %lld to Channel ID: %lld\n", 
                (long long)packet->sender_id, (long long)packet->payload.channel.channel_id);
         
-        // Broadcast the entire packet
+        // Inject the authoritative sender info before broadcasting
+        if (sender_node != NULL) {
+            packet->sender_id = sender_node->id;
+            // We use channel_name to safely transmit the sender's username to the UI
+            strncpy(packet->payload.channel.channel_name, sender_node->username, MAX_NAME_LEN - 1);
+        }
+        
+        // Broadcast the modified packet
         channel_broadcast(ctx, 
                           packet->payload.channel.channel_id,
                           (const char*)packet, 
                           sizeof(TizcordPacket), 
-                          sender_fd);
+                          -1); // Changed to -1 so the sender also receives the broadcast!
         
         if (ctx->db != NULL && sender_node != NULL) {
-            // No more string conversions! Pass the native 64-bit integers straight through.
             db_save_message(ctx->db, 
                             packet->payload.channel.channel_id, 
                             (sqlite3_int64)sender_node->id, 
                             packet->payload.channel.message);
         }
+    }
+    else if (packet->payload.channel.action == CHANNEL_CREATE) {
+        printf("[Chat] Create channel request: %s in Server ID: %lld\n", 
+               packet->payload.channel.channel_name, (long long)packet->payload.channel.server_id);
+        
+        TizcordPacket reply = create_base_packet(CHANNEL);
+        reply.payload.channel.action = CHANNEL_CREATE;
+        reply.payload.channel.server_id = packet->payload.channel.server_id;
+        
+        int64_t new_channel_id = 0;
+        
+        // Pass the reference to new_channel_id
+        if (ctx->db != NULL && db_create_channel(ctx->db, packet->payload.channel.server_id, packet->payload.channel.channel_name, &new_channel_id) == 0) {
+            reply.payload.channel.status_code = 0; // Success
+            reply.payload.channel.channel_id = new_channel_id; // Attach the new ID
+            strncpy(reply.payload.channel.channel_name, packet->payload.channel.channel_name, MAX_NAME_LEN - 1);
+        } else {
+            reply.payload.channel.status_code = -5; // Database Error
+        }
+        
+        write(sender_fd, &reply, sizeof(TizcordPacket));
     }
     else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
         printf("[Chat] Edit channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
@@ -80,6 +134,35 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                           (const char*)packet, 
                           sizeof(TizcordPacket), 
                           sender_fd);
+    }
+    else if (packet->payload.channel.action == CHANNEL_HISTORY_REQUEST) {
+        printf("[Chat] History request for Channel ID: %lld\n", (long long)packet->payload.channel.channel_id);
+        
+        MessageHistoryContext cb_ctx = {
+            .client_fd = sender_fd,
+            .current_index = 0,
+            .list_id = (int32_t)packet->payload.channel.channel_id,
+            .channel_id = packet->payload.channel.channel_id
+        };
+
+        // Send START frame
+        TizcordPacket start_pkt = create_base_packet(CHANNEL);
+        start_pkt.payload.channel.action = CHANNEL_MESSAGE;
+        start_pkt.list_id = cb_ctx.list_id;
+        start_pkt.list_frame = LIST_FRAME_START;
+        write(sender_fd, &start_pkt, sizeof(TizcordPacket));
+
+        // Stream the history
+        if (ctx->db != NULL) {
+            db_list_channel_messages(ctx->db, packet->payload.channel.channel_id, message_history_cb, &cb_ctx);
+        }
+
+        // Send END frame
+        TizcordPacket end_pkt = create_base_packet(CHANNEL);
+        end_pkt.payload.channel.action = CHANNEL_MESSAGE;
+        end_pkt.list_id = cb_ctx.list_id;
+        end_pkt.list_frame = LIST_FRAME_END;
+        write(sender_fd, &end_pkt, sizeof(TizcordPacket));
     }
 }
 

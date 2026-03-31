@@ -13,6 +13,7 @@ typedef struct {
     char names[MAX_SERVERS][MAX_NAME_LEN];
     const char *name_ptrs[MAX_SERVERS];
     int64_t ids[MAX_SERVERS];
+    int member_counts[MAX_SERVERS];
     size_t count;
     int truncated;
 } ServerListAccumulator;
@@ -33,7 +34,7 @@ typedef struct {
     int truncated;
 } MemberListAccumulator;
 
-static void collect_server_list_item(int64_t server_id, const char *server_name,
+static void collect_server_list_item(int64_t server_id, const char *server_name, int member_count,
                                      void *userdata) {
     ServerListAccumulator *acc = (ServerListAccumulator *)userdata;
     if (acc == NULL) {
@@ -46,6 +47,7 @@ static void collect_server_list_item(int64_t server_id, const char *server_name,
     }
 
     acc->ids[acc->count] = server_id;
+    acc->member_counts[acc->count] = member_count;
     strncpy(acc->names[acc->count], server_name != NULL ? server_name : "",
             MAX_NAME_LEN - 1);
     acc->names[acc->count][MAX_NAME_LEN - 1] = '\0';
@@ -168,16 +170,16 @@ void join_tizcord_server(ServerContext *ctx, ClientNode *client,
     }
 
     if (db_join_server(ctx->db, server_id, client->id, false) == 0) {
-        printf("[Server] User id=%lld joined server id=%lld\n", client->id,
-               server_id);
+        printf("[Server] User id=%lld joined server id=%lld\n", (long long)client->id,
+               (long long)server_id);
         if (send_action_response(client->socket_fd, SERVER, SERVER_JOIN,
                                  RESP_OK, NULL) != 0) {
             fprintf(stderr,
                     "[Server] Failed to send join response to client id=%lld\n",
-                    client->id);
+                    (long long)client->id);
         }
     } else {
-        fprintf(stderr, "[Server] Failed to join server id=%lld\n", server_id);
+        fprintf(stderr, "[Server] Failed to join server id=%lld\n", (long long)server_id);
         send_action_response(client->socket_fd, SERVER, SERVER_JOIN,
                              RESP_ERR_DB, NULL);
     }
@@ -203,8 +205,8 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
     }
 
     if (db_leave_server(ctx->db, server_id, client->id) == 0) {
-        printf("[Server] User id=%lld left server id=%lld\n", client->id,
-               server_id);
+        printf("[Server] User id=%lld left server id=%lld\n", (long long)client->id,
+               (long long)server_id);
         if (send_action_response(client->socket_fd, SERVER, SERVER_LEAVE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
@@ -213,7 +215,7 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
                 client->id);
         }
     } else {
-        fprintf(stderr, "[Server] Failed to leave server id=%lld\n", server_id);
+        fprintf(stderr, "[Server] Failed to leave server id=%lld\n", (long long)server_id);
         send_action_response(client->socket_fd, SERVER, SERVER_LEAVE,
                              RESP_ERR_DB, NULL);
     }
@@ -240,14 +242,14 @@ void create_tizcord_server(ServerContext *ctx, ClientNode *client,
     }
 
     if (db_create_server(ctx->db, server_name, client->id) == 0) {
-        printf("[Server] User id=%lld created server '%s'\n", client->id,
+        printf("[Server] User id=%lld created server '%s'\n", (long long)client->id,
                server_name);
         if (send_action_response(client->socket_fd, SERVER, SERVER_CREATE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
                 stderr,
                 "[Server] Failed to send create response to client id=%lld\n",
-                client->id);
+                (long long)client->id);
         }
     } else {
         fprintf(stderr, "[Server] Failed to create server '%s'\n", server_name);
@@ -282,18 +284,18 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
     }
 
     if (db_delete_server(ctx->db, server_id, client->id) == 0) {
-        printf("[Server] User id=%lld deleted server id=%lld\n", client->id,
-               server_id);
+        printf("[Server] User id=%lld deleted server id=%lld\n", (long long)client->id,
+               (long long)server_id);
         if (send_action_response(client->socket_fd, SERVER, SERVER_DELETE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
                 stderr,
                 "[Server] Failed to send delete response to client id=%lld\n",
-                client->id);
+                (long long)client->id);
         }
     } else {
         fprintf(stderr, "[Server] Failed to delete server id=%lld\n",
-                server_id);
+                (long long)server_id);
         send_action_response(client->socket_fd, SERVER, SERVER_DELETE,
                              RESP_ERR_DB, NULL);
     }
@@ -320,12 +322,12 @@ void edit_tizcord_server(ServerContext *ctx, ClientNode *client,
     }
 
     if (db_edit_server(ctx->db, server_id, client->id, new_name) == 0) {
-        printf("[Server] User id=%lld edited server id=%lld\n", client->id,
-               server_id);
+        printf("[Server] User id=%lld edited server id=%lld\n", (long long)client->id,
+               (long long)server_id);
         send_action_response(client->socket_fd, SERVER, SERVER_EDIT, RESP_OK,
                              NULL);
     } else {
-        fprintf(stderr, "[Server] Failed to edit server id=%lld\n", server_id);
+        fprintf(stderr, "[Server] Failed to edit server id=%lld\n", (long long)server_id);
         send_action_response(client->socket_fd, SERVER, SERVER_EDIT,
                              RESP_ERR_DB, NULL);
     }
@@ -356,7 +358,7 @@ void list_tizcord_servers(ServerContext *ctx, ClientNode *client) {
     }
 
     if (send_list_response(client->socket_fd, SERVER, SERVER_LIST,
-                           acc.name_ptrs, acc.ids, acc.count) != 0) {
+                           acc.name_ptrs, acc.ids, acc.member_counts, acc.count) != 0) {
         send_action_response(client->socket_fd, SERVER, SERVER_LIST,
                              RESP_ERR_INTERNAL, NULL);
     }
@@ -388,7 +390,7 @@ void list_tizcord_channels(ServerContext *ctx, ClientNode *client, int64_t serve
     }
 
     if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_CHANNELS,
-                           acc.name_ptrs, acc.ids, acc.count) != 0) {
+                           acc.name_ptrs, acc.ids, NULL, acc.count) != 0) {
         send_action_response(client->socket_fd, SERVER, SERVER_LIST_CHANNELS,
                              RESP_ERR_INTERNAL, NULL);
     }
@@ -420,7 +422,7 @@ void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
     }
 
     if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
-                           acc.name_ptrs, acc.ids, acc.count) != 0) {
+                           acc.name_ptrs, acc.ids, NULL, acc.count) != 0) {
         send_action_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_INTERNAL, NULL);
     }
@@ -452,7 +454,7 @@ void list_joined_servers(ServerContext *ctx, ClientNode *client) {
     }
 
     if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
-                           acc.name_ptrs, acc.ids, acc.count) != 0) {
+                           acc.name_ptrs, acc.ids, acc.member_counts, acc.count) != 0) {
         send_action_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
                              RESP_ERR_INTERNAL, NULL);
     }

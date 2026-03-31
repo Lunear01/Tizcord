@@ -80,11 +80,11 @@ void leave_server(int server_id) {
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(SERVER);
-    
     packet.payload.server.action = SERVER_LEAVE;
-    snprintf((char *)packet.payload.server.server_id, sizeof(packet.payload.server.server_id), "%d", server_id);
+    
+    // FIX: Assign the integer directly
+    packet.payload.server.server_id = server_id; 
 
-    // printf("[Client] Sending request to leave server ID: %d\n", server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -92,15 +92,11 @@ void create_channel(int server_id, const char *channel_name) {
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(CHANNEL);
-    
-    // Assuming ChannelPayload has fields for this
-    // packet.payload.channel.server_id = server_id;
-    // strncpy(packet.payload.channel.channel_name, channel_name, 31);
     packet.payload.channel.action = CHANNEL_CREATE;
-    snprintf((char *)packet.payload.channel.server_id, sizeof(packet.payload.channel.server_id), "%d", server_id);
+    
+    packet.payload.channel.server_id = server_id; 
     strncpy(packet.payload.channel.channel_name, channel_name, sizeof(packet.payload.channel.channel_name) - 1);
 
-    // printf("[Client] Sending request to create channel '%s' in server %d\n", channel_name, server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -108,11 +104,11 @@ void delete_channel(int channel_id) {
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(CHANNEL);
-    
     packet.payload.channel.action = CHANNEL_DELETE;
-    snprintf((char *)packet.payload.channel.channel_id, sizeof(packet.payload.channel.channel_id), "%d", channel_id);
+    
+    // FIX: Assign the integer directly
+    packet.payload.channel.channel_id = channel_id; 
 
-    // printf("[Client] Sending request to delete channel ID: %d\n", channel_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -157,5 +153,57 @@ void request_friend_list(void) {
     packet.payload.social.action = SOCIAL_LIST_FRIENDS;
 
     // printf("[Client] Refreshing friend list...\n");
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void request_server_channels(int64_t server_id) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(SERVER);
+    packet.payload.server.action = SERVER_LIST_CHANNELS;
+    packet.payload.server.server_id = server_id;
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void request_server_members(int64_t server_id) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(SERVER);
+    packet.payload.server.action = SERVER_LIST_MEMBERS;
+    packet.payload.server.server_id = server_id;
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void request_channel_history(int64_t channel_id) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(CHANNEL);
+    packet.payload.channel.action = CHANNEL_HISTORY_REQUEST;
+    packet.payload.channel.channel_id = channel_id;
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void send_channel_message(int64_t channel_id, const char *message) {
+    if (client_socket < 0) return;
+    
+    TizcordPacket packet = create_base_packet(CHANNEL);
+    packet.payload.channel.action = CHANNEL_MESSAGE;
+    packet.payload.channel.channel_id = channel_id;
+    
+    // Copy the text content
+    strncpy(packet.payload.channel.message, message, MESSAGE_LEN - 1);
+    
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void list_all_servers_request(void) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(SERVER);
+    packet.payload.server.action = SERVER_LIST;
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void join_server(int64_t server_id) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(SERVER);
+    packet.payload.server.action = SERVER_JOIN;
+    packet.payload.server.server_id = server_id;
     write(client_socket, &packet, sizeof(TizcordPacket));
 }

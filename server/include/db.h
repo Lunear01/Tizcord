@@ -8,8 +8,8 @@
 
 typedef struct DbContext DbContext;
 
-typedef void (*MessageCallback)(const char* username, const char* content, const char* timestamp, void* userdata);
-typedef void (*ServerCallback)(int64_t server_id, const char* server_name, void* userdata);
+typedef void (*MessageCallback)(int64_t msg_id, const char* username, const char* content, int64_t timestamp, void* userdata);
+typedef void (*ServerCallback)(int64_t id, const char* name, int member_count, void* userdata);
 typedef void (*ChannelCallback)(int64_t channel_id, const char* channel_name, void* userdata);
 typedef void (*MemberCallback)(int64_t user_id, const char* username, int is_admin, void* userdata);
 typedef void (*FriendCallback)(int64_t friend_id, const char* username, void* userdata);
@@ -42,6 +42,7 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id);
 int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_delete_channel(DbContext* db, int64_t channel_id);
+int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata);
 
 /* Messages */
 int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const char* content);
