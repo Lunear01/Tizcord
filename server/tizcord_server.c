@@ -127,7 +127,7 @@ void handle_server_packet(ServerContext *ctx, ClientNode *client,
         list_tizcord_servers(ctx, client);
         break;
     case SERVER_LIST_CHANNELS:
-        list_channels(ctx, client, server_id);
+        list_tizcord_channels(ctx, client, server_id);
         break;
     case SERVER_LIST_MEMBERS:
         list_members(ctx, client, server_id);
@@ -258,7 +258,7 @@ void create_tizcord_server(ServerContext *ctx, ClientNode *client,
 
 void get_tizcord_server_info(ServerContext *ctx, ClientNode *client,
                              int64_t server_id) {
-    list_channels(ctx, client, server_id);
+    list_tizcord_channels(ctx, client, server_id);
     list_members(ctx, client, server_id);
 }
 
@@ -362,7 +362,7 @@ void list_tizcord_servers(ServerContext *ctx, ClientNode *client) {
     }
 }
 
-void list_channels(ServerContext *ctx, ClientNode *client, int64_t server_id) {
+void list_tizcord_channels(ServerContext *ctx, ClientNode *client, int64_t server_id) {
     ChannelListAccumulator acc = {0};
 
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {

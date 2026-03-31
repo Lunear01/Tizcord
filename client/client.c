@@ -72,7 +72,7 @@ void create_server(const char *server_name) {
     packet.payload.server.action = SERVER_CREATE;
     strncpy(packet.payload.server.server_name, server_name, sizeof(packet.payload.server.server_name) - 1);
 
-    printf("[Client] Sending request to create server: %s\n", server_name);
+    // printf("[Client] Sending request to create server: %s\n", server_name);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -84,7 +84,7 @@ void leave_server(int server_id) {
     packet.payload.server.action = SERVER_LEAVE;
     snprintf((char *)packet.payload.server.server_id, sizeof(packet.payload.server.server_id), "%d", server_id);
 
-    printf("[Client] Sending request to leave server ID: %d\n", server_id);
+    // printf("[Client] Sending request to leave server ID: %d\n", server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -100,7 +100,7 @@ void create_channel(int server_id, const char *channel_name) {
     snprintf((char *)packet.payload.channel.server_id, sizeof(packet.payload.channel.server_id), "%d", server_id);
     strncpy(packet.payload.channel.channel_name, channel_name, sizeof(packet.payload.channel.channel_name) - 1);
 
-    printf("[Client] Sending request to create channel '%s' in server %d\n", channel_name, server_id);
+    // printf("[Client] Sending request to create channel '%s' in server %d\n", channel_name, server_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -112,7 +112,7 @@ void delete_channel(int channel_id) {
     packet.payload.channel.action = CHANNEL_DELETE;
     snprintf((char *)packet.payload.channel.channel_id, sizeof(packet.payload.channel.channel_id), "%d", channel_id);
 
-    printf("[Client] Sending request to delete channel ID: %d\n", channel_id);
+    // printf("[Client] Sending request to delete channel ID: %d\n", channel_id);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -120,10 +120,11 @@ void send_friend_request(const char *target_username) {
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(SOCIAL);
-    // packet.payload.social.action = SOCIAL_FRIEND_REQUEST;
-    // strncpy(packet.receiver, target_username, sizeof(packet.receiver) - 1); // DEPRECATED
+    packet.payload.social.action = SOCIAL_FRIEND_REQUEST;
+    strncpy(packet.payload.social.target_username, target_username, sizeof(packet.payload.social.target_username) - 1);
+    packet.payload.social.target_username[sizeof(packet.payload.social.target_username) - 1] = '\0';
 
-    printf("[Client] Sending friend request to %s...\n", target_username);
+    // printf("[Client] Sending friend request to %s...\n", target_username);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -131,10 +132,11 @@ void accept_friend_request(const char *target_username) {
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(SOCIAL);
-    // packet.payload.social.action = SOCIAL_FRIEND_ACCEPT;
-    // strncpy(packet.receiver, target_username, sizeof(packet.receiver) - 1); // DEPRECATED
+    packet.payload.social.action = SOCIAL_FRIEND_ACCEPT;
+    strncpy(packet.payload.social.target_username, target_username, sizeof(packet.payload.social.target_username) - 1);
+    packet.payload.social.target_username[sizeof(packet.payload.social.target_username) - 1] = '\0';
 
-    printf("[Client] Accepting friend request from %s...\n", target_username);
+    // printf("[Client] Accepting friend request from %s...\n", target_username);
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -144,6 +146,16 @@ void list_joined_servers_request(void) {
     TizcordPacket packet = create_base_packet(SERVER);
     packet.payload.server.action = SERVER_LIST_JOINED;
 
-    printf("[Client] Requesting joined server list...\n");
+    // printf("[Client] Requesting joined server list...\n");
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void request_friend_list(void) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(SOCIAL);
+    packet.payload.social.action = SOCIAL_LIST_FRIENDS;
+
+    // printf("[Client] Refreshing friend list...\n");
     write(client_socket, &packet, sizeof(TizcordPacket));
 }

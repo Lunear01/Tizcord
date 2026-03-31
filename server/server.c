@@ -3,6 +3,7 @@
 #include "include/auth.h"
 #include "include/tizcord_server.h"
 #include "include/tizcord_chat.h"
+#include "include/tizcord_social.h"
 
 
 #include <stdio.h>
@@ -175,6 +176,7 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
             break;
         case SOCIAL :
             printf("[Server] Received SOCIAL packet\n");
+            handle_social_packet(ctx, client, packet);
             break;
         default:
             printf("[Server] Unknown packet type %d received!\n", packet->type);

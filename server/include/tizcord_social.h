@@ -10,5 +10,6 @@ void list_friends(ServerContext* ctx, int client_index);
 void remove_friend(ServerContext* ctx, int client_index, const char* friend_username);
 void check_online_users(ServerContext* ctx, int client_index);
 void update_user_status(ServerContext* ctx, int client_index, UserStatus new_status);
+void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet);
 
 #endif

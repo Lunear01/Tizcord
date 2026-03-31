@@ -124,7 +124,31 @@ int db_get_password_hash(DbContext* db, const char* username, char* hash_out, in
     return status;
 }
 
-int db_save_message(DbContext* db, int64_t channel_id, sqlite3_int64 user_id, const char* content) {
+int db_get_user_id_by_name(DbContext* db, const char* username, int64_t* user_id_out) {
+    const char* sql = "SELECT id FROM users WHERE username = ?;";
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare user_id lookup");
+    }
+
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt);
+    int status = -1;
+
+    if (rc == SQLITE_ROW) {
+        if (user_id_out) {
+            *user_id_out = sqlite3_column_int64(stmt, 0);
+        }
+        status = 0;
+    }
+
+    sqlite3_finalize(stmt);
+    return status;
+}
+
+int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const char* content) {
     const char* sql = "INSERT INTO messages (channel_id, user_id, content) VALUES (?, ?, ?);";
     sqlite3_stmt* stmt;
     
@@ -226,10 +250,10 @@ int db_create_server(DbContext* db, const char* name, int64_t user_id) {
     }
     sqlite3_finalize(stmt_insert);
 
-    int64_t *server_id_out = sqlite3_last_insert_rowid(db->conn);
+    int64_t server_id_out = sqlite3_last_insert_rowid(db->conn);
 
     // Add creator as admin member of the server
-    return db_join_server(db, *server_id_out, user_id, true);
+    return db_join_server(db, server_id_out, user_id, true);
 }
 
 int db_join_server(DbContext* db, int64_t server_id, int64_t user_id, bool is_admin){
@@ -468,4 +492,109 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id) {
     }
 
     return sqlite3_changes(db->conn) > 0 ? 0 : -1;
+}
+
+/* -------------- SOCIAL OPERATIONS ------------------ */
+int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id) {
+    const char* sql = "INSERT INTO friends (user_id, friend_id, is_accepted) VALUES (?, ?, 0);";
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare friend request");
+    }
+
+    sqlite3_bind_int64(stmt, 1, user_id);
+    sqlite3_bind_int64(stmt, 2, friend_id);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute friend request");
+    }
+
+    return 0;
+}
+
+int db_accept_friend_request(DbContext* db, int64_t my_user_id, int64_t friend_id) {
+    int is_accepted = -1;
+    const char* check_sql = "SELECT is_accepted FROM friends WHERE user_id = ? AND friend_id = ?;";
+    sqlite3_stmt* check_stmt;
+    if (sqlite3_prepare_v2(db->conn, check_sql, -1, &check_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(check_stmt, 1, friend_id);
+        sqlite3_bind_int64(check_stmt, 2, my_user_id);
+        if (sqlite3_step(check_stmt) == SQLITE_ROW) {
+            is_accepted = sqlite3_column_int(check_stmt, 0);
+        }
+        sqlite3_finalize(check_stmt);
+    }
+    
+    if (is_accepted == -1) {
+        return -1; // Not found
+    }
+    if (is_accepted == 1) {
+        return -2; // Already friends
+    }
+    
+    // Accept the request
+    const char* up_sql = "UPDATE friends SET is_accepted = 1 WHERE user_id = ? AND friend_id = ?;";
+    sqlite3_stmt* up_stmt;
+    if (sqlite3_prepare_v2(db->conn, up_sql, -1, &up_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(up_stmt, 1, friend_id);
+        sqlite3_bind_int64(up_stmt, 2, my_user_id);
+        sqlite3_step(up_stmt);
+        sqlite3_finalize(up_stmt);
+    }
+    
+    // Delete reciprocal request
+    const char* del_sql = "DELETE FROM friends WHERE user_id = ? AND friend_id = ? AND is_accepted = 0;";
+    sqlite3_stmt* del_stmt;
+    if (sqlite3_prepare_v2(db->conn, del_sql, -1, &del_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(del_stmt, 1, my_user_id);
+        sqlite3_bind_int64(del_stmt, 2, friend_id);
+        sqlite3_step(del_stmt);
+        sqlite3_finalize(del_stmt);
+    }
+
+    return 0;
+}
+
+int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallback req_cb, void* userdata) {
+    if (!req_cb) return -1;
+
+    const char* sql = 
+        "SELECT u.id, u.username, "
+        "  CASE WHEN f.is_accepted = 1 THEN 2 ELSE 1 END AS is_incoming "
+        "FROM friends f JOIN users u ON f.user_id = u.id "
+        "WHERE f.friend_id = ? "
+        "UNION ALL "
+        "SELECT u.id, u.username, "
+        "  CASE WHEN f.is_accepted = 1 THEN 2 ELSE 0 END AS is_incoming "
+        "FROM friends f JOIN users u ON f.friend_id = u.id "
+        "WHERE f.user_id = ?;";
+
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare friend requests select");
+    }
+
+    sqlite3_bind_int64(stmt, 1, user_id);
+    sqlite3_bind_int64(stmt, 2, user_id);
+
+    int rc;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int64_t target_id = sqlite3_column_int64(stmt, 0);
+        const char* username = (const char*)sqlite3_column_text(stmt, 1);
+        int is_incoming = sqlite3_column_int(stmt, 2);
+        
+        req_cb(target_id, username ? username : "", is_incoming, userdata);
+    }
+
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed while iterating friend requests");
+    }
+
+    return 0;
 }

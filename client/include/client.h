@@ -10,6 +10,7 @@ void leave_server(int server_id);
 
 void send_friend_request(const char *target_username);
 void accept_friend_request(const char *target_username);
+void request_friend_list(void);
 void list_joined_servers_request(void);
 
 #endif
