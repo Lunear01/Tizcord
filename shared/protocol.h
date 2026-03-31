@@ -125,6 +125,7 @@ typedef struct {
     int64_t server_id;
     int64_t target_user_id; // used for actions like kick
     int status_code;
+    int member_count;
     char server_name[MAX_NAME_LEN];
 } ServerPayload;
 

@@ -348,28 +348,32 @@ int db_edit_server(DbContext* db, int64_t server_id, int64_t user_id, const char
     return 0;
 }
 
+// Replace db_list_servers in db.c
 int db_list_servers(DbContext* db, ServerCallback server_cb, void *userdata) {
-    const char* sql = "SELECT id, name FROM servers ORDER BY name ASC;";
+    // Join with server_members to count how many users are in each server
+    const char* sql = 
+        "SELECT s.id, s.name, COUNT(sm.user_id) "
+        "FROM servers s "
+        "LEFT JOIN server_members sm ON s.id = sm.server_id "
+        "GROUP BY s.id "
+        "ORDER BY s.name ASC;";
+    
     sqlite3_stmt* stmt;
 
     if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return db_err(db, "Failed to prepare server list");
+        return -1;
     }
 
-    int rc;
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
         if (server_cb != NULL) {
             int64_t id = sqlite3_column_int64(stmt, 0);
             const char* name = (const char*)sqlite3_column_text(stmt, 1);
-            server_cb(id, name != NULL ? name : "", userdata);
+            int count = sqlite3_column_int(stmt, 2); // Get the counted members
+            server_cb(id, name != NULL ? name : "", count, userdata);
         }
     }
 
     sqlite3_finalize(stmt);
-    if (rc != SQLITE_DONE) {
-        return db_err(db, "Failed while iterating server list");
-    }
-
     return 0;
 }
 
@@ -437,9 +441,12 @@ int db_list_server_members(DbContext* db, int64_t server_id, MemberCallback memb
     return 0;
 }
 
+// Replace this function in db.c
 int db_list_joined_servers(DbContext* db, int64_t user_id, ServerCallback server_cb, void* userdata) {
+    // We use a subquery to count the members for each server the user is in
     const char* sql =
-        "SELECT s.id, s.name "
+        "SELECT s.id, s.name, "
+        "  (SELECT COUNT(*) FROM server_members WHERE server_id = s.id) as count "
         "FROM server_members sm "
         "JOIN servers s ON s.id = sm.server_id "
         "WHERE sm.user_id = ? "
@@ -457,7 +464,10 @@ int db_list_joined_servers(DbContext* db, int64_t user_id, ServerCallback server
         if (server_cb != NULL) {
             int64_t id = sqlite3_column_int64(stmt, 0);
             const char* name = (const char*)sqlite3_column_text(stmt, 1);
-            server_cb(id, name != NULL ? name : "", userdata);
+            int count = sqlite3_column_int(stmt, 2); // Get the counted members
+            
+            // Pass the 4 arguments, including the count
+            server_cb(id, name != NULL ? name : "", count, userdata);
         }
     }
 
@@ -597,4 +607,56 @@ int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallbac
     }
 
     return 0;
+}
+
+int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata) {
+    // We use a subquery to get the 50 MOST RECENT messages, but order them chronologically
+    const char* sql = 
+        "SELECT * FROM ("
+        "  SELECT m.id, u.username, m.content, m.created_at "
+        "  FROM messages m "
+        "  JOIN users u ON m.user_id = u.id "
+        "  WHERE m.channel_id = ? "
+        "  ORDER BY m.created_at DESC LIMIT 50"
+        ") ORDER BY created_at ASC;";
+        
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) return -1;
+    sqlite3_bind_int64(stmt, 1, channel_id);
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        int64_t msg_id = sqlite3_column_int64(stmt, 0);
+        const char* username = (const char*)sqlite3_column_text(stmt, 1);
+        const char* content = (const char*)sqlite3_column_text(stmt, 2);
+        int64_t timestamp = sqlite3_column_int64(stmt, 3);
+        
+        if (msg_cb) msg_cb(msg_id, username ? username : "Unknown", content ? content : "", timestamp, userdata);
+    }
+    
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
+int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out) {
+    const char* sql = "INSERT INTO channels (server_id, name) VALUES (?, ?);";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+
+    sqlite3_bind_int64(stmt, 1, server_id);
+    sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc == SQLITE_DONE) {
+        if (channel_id_out != NULL) {
+            *channel_id_out = sqlite3_last_insert_rowid(db->conn);
+        }
+        return 0;
+    }
+    
+    return -1;
 }

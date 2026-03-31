@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
+#include <sys/socket.h>
 #include "client_helper.h"
 #include "protocol.h"
 
@@ -81,8 +82,8 @@ int send_list_item_response(int client_fd, const TizcordPacket *item_packet) {
 }
 
 int send_list_response(int client_fd, PacketType type, int action,
-				   const char *const *items, const int64_t *item_ids,
-				   size_t item_count) {
+                   const char *const *items, const int64_t *item_ids,
+                   const int *item_counts, size_t item_count) {
 	if (item_count > 0 && items == NULL) {
 		fprintf(stderr, "[Client Helper] items is NULL in send_list_response\n");
 		return -1;
@@ -151,6 +152,9 @@ int send_list_response(int client_fd, PacketType type, int action,
 				if (item_ids != NULL) {
 					item_packet.payload.server.server_id = item_ids[i];
 				}
+				if (item_counts != NULL) {
+                    item_packet.payload.server.member_count = item_counts[i];
+                }
 				strncpy(item_packet.payload.server.server_name, items[i], MAX_NAME_LEN - 1);
 				break;
 			case CHANNEL:
