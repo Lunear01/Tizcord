@@ -13,9 +13,9 @@
 - [x] Login page
 - [x] Basic functionality: Establishing connection, sending and receiving messages
 - [ ] Online status 
-- [ ] Channels: Invitations, Removal
+- [x] Channels: Creation, Removal yet to be implemented
 - [ ] Private Messages
-- [ ] Message timestamps 
+- [x] Message timestamps 
 - [ ] Message edit/delete
 - [ ] Polls
 - [ ] File transfer

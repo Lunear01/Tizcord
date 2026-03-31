@@ -29,7 +29,8 @@ typedef enum
     SCREEN_SERVERS,
     SCREEN_FRIENDS,
     SCREEN_CHAT,
-    SCREEN_COMMAND
+    SCREEN_COMMAND,
+    SCREEN_DMS
 } Screen;
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -85,12 +86,17 @@ typedef struct {
     int64_t id;
     char username[MAX_NAME_LEN];
     int type; // 1 = incoming, 0 = outgoing
+    Message messages[MAX_MESSAGES];
+    int msg_count;
 } UIFriend;
 
 #define MAX_FRIENDS 64
 UIFriend ui_friends[MAX_FRIENDS];
 int friend_count = 0;
 int friend_cursor = 0;
+int active_dm_friend = -1; // The index of the friend we are chatting with
+char dm_input[MAX_MSG_LEN] = {0};
+int dm_input_len = 0;
 
 Screen previous_screen = SCREEN_LOGIN;
 char cmd_input[MAX_MSG_LEN] = {0};
@@ -586,7 +592,7 @@ void draw_server_list(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  TAB: Friends  /: Command");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  TAB: Friends  /: Command `:DMs");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -656,6 +662,10 @@ void handle_server_input(int ch)
         }
         break;
     }
+    case '`': // The backtick key
+            current_screen = SCREEN_DMS;
+            request_friend_list(); // Refresh the friend list so we have people to DM
+            break;
     }
 }
 
@@ -825,7 +835,7 @@ void draw_chat(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 1, " TAB: channels  ENTER: send  CLICK: channel  q: quit");
+    mvprintw(rows - 1, 1, " TAB: Channels  ENTER: Send  CLICK: Channel  q: Quit /: Command");
     attroff(COLOR_PAIR(3));
 
     /* Cursor */
@@ -995,8 +1005,21 @@ void ui_delete_channel_message(TizcordPacket *packet) {
 }
 
 void ui_receive_dm_message(TizcordPacket *packet) {
-    // TODO: Add logic for a dedicated DM screen
-    (void)packet;
+    /// Find the friend who sent this message
+    for (int i = 0; i < friend_count; i++) {
+        if (ui_friends[i].id == packet->sender_id) {
+            
+            if (ui_friends[i].msg_count < MAX_MESSAGES) {
+                Message *m = &ui_friends[i].messages[ui_friends[i].msg_count++];
+                
+                // Fallback to ID if username isn't known, otherwise use known friend name
+                strncpy(m->sender, ui_friends[i].username, MAX_NAME_LEN - 1);
+                strncpy(m->body, packet->payload.dm.message, MAX_MSG_LEN - 1);
+                m->ts = packet->timestamp;
+            }
+            break;
+        }
+    }
 }
 
 void ui_update_server_state(TizcordPacket *packet) {
@@ -1353,6 +1376,197 @@ void handle_friends_input(int ch) {
             break;
     }
 }
+// Add this function to ui.c
+void draw_dms(int rows, int cols) {
+    erase();
+    
+    int main_x = 20 + 1; // 20 is SIDEBAR_W
+    int main_w = cols - main_x;
+
+    /* ── Left Sidebar (Friends List) ── */
+    attron(COLOR_PAIR(10) | A_BOLD);
+    mvhline(0, 0, ' ', 20);
+    mvprintw(0, 1, " DIRECT MESSAGES");
+    attroff(COLOR_PAIR(10) | A_BOLD);
+
+    attron(COLOR_PAIR(6));
+    for (int r = 0; r < rows - 1; r++) mvaddch(r, 20, ACS_VLINE);
+    attroff(COLOR_PAIR(6));
+
+    // Draw only accepted friends
+    int display_row = 2;
+    for (int i = 0; i < friend_count; i++) {
+        if (ui_friends[i].type == 2) { // Is accepted friend
+            if (active_dm_friend == -1) active_dm_friend = i; // Default to first friend
+            
+            if (i == active_dm_friend) {
+                attron(COLOR_PAIR(2) | A_BOLD);
+                mvprintw(display_row++, 1, " @ %-15.15s", ui_friends[i].username);
+                attroff(COLOR_PAIR(2) | A_BOLD);
+            } else {
+                attron(COLOR_PAIR(3));
+                mvprintw(display_row++, 1, " @ %-15.15s", ui_friends[i].username);
+                attroff(COLOR_PAIR(3));
+            }
+        }
+    }
+
+    if (active_dm_friend == -1) {
+        attron(COLOR_PAIR(4));
+        mvprintw(4, 2, "No friends yet.");
+        attroff(COLOR_PAIR(4));
+        refresh();
+        return;
+    }
+
+    /* ── Main Area (Chat) ── */
+    UIFriend *f = &ui_friends[active_dm_friend];
+
+    attron(COLOR_PAIR(10) | A_BOLD);
+    mvhline(0, main_x, ' ', main_w);
+    mvprintw(0, main_x + 1, " @ %s", f->username);
+    attroff(COLOR_PAIR(10) | A_BOLD);
+
+    int msg_area = rows - 4; 
+    int start = f->msg_count > msg_area ? f->msg_count - msg_area : 0;
+    
+    // Draw messages
+    for (int i = start; i < f->msg_count; i++) {
+        int row = 2 + (i - start);
+        Message *m = &f->messages[i];
+
+        char tstr[8];
+        struct tm *tm_info = localtime(&m->ts);
+        strftime(tstr, sizeof(tstr), "%H:%M", tm_info);
+
+        // Check if the message was sent by us
+        int is_me = (strcmp(m->sender, users[current_user].username) == 0);
+
+        if (!is_me) {
+            // Incoming message (Left aligned)
+            attron(COLOR_PAIR(4));
+            mvprintw(row, main_x + 1, "%s", tstr);
+            attroff(COLOR_PAIR(4));
+
+            attron(COLOR_PAIR(5) | A_BOLD); // Cyan for friend
+            mvprintw(row, main_x + 7, "%-7.7s", m->sender);
+            attroff(COLOR_PAIR(5) | A_BOLD);
+
+            attron(COLOR_PAIR(1));
+            mvprintw(row, main_x + 15, "%.*s", main_w - 16, m->body);
+            attroff(COLOR_PAIR(1));
+        } else {
+            // Outgoing message (Right aligned)
+            int blen = strlen(m->body);
+            int slen = strlen(m->sender);
+            if (slen > 7) slen = 7; // Cap sender display length
+            
+            // Prevent the body from overlapping the left sidebar
+            int max_body_w = main_w - 10 - slen; 
+            if (blen > max_body_w) blen = max_body_w;
+
+            // Calculate anchor points from the right edge
+            int right_edge = main_x + main_w - 2;
+            int time_x = right_edge - 4;      // 5 chars for HH:MM
+            int sender_x = time_x - 1 - slen; // Shift left by sender length + 1 space
+            int body_x = sender_x - 1 - blen; // Shift left by body length + 1 space
+
+            attron(COLOR_PAIR(1));
+            mvprintw(row, body_x, "%.*s", blen, m->body);
+            attroff(COLOR_PAIR(1));
+
+            attron(COLOR_PAIR(7) | A_BOLD); // Green for our own username!
+            mvprintw(row, sender_x, "%.*s", slen, m->sender);
+            attroff(COLOR_PAIR(7) | A_BOLD);
+
+            attron(COLOR_PAIR(4));
+            mvprintw(row, time_x, "%s", tstr);
+            attroff(COLOR_PAIR(4));
+        }
+    }
+
+    /* ── Input Box ── */
+    attron(COLOR_PAIR(6));
+    mvhline(rows - 3, main_x, ACS_HLINE, main_w);
+    attroff(COLOR_PAIR(6));
+
+    char prompt_buf[MAX_NAME_LEN + 4];
+    snprintf(prompt_buf, sizeof(prompt_buf), "[@%s] ", f->username);
+    int prompt_len = strlen(prompt_buf);
+
+    attron(COLOR_PAIR(4));
+    mvprintw(rows - 2, main_x + 1, "%s", prompt_buf);
+    attroff(COLOR_PAIR(4));
+    
+    attron(COLOR_PAIR(1));
+    mvprintw(rows - 2, main_x + 1 + prompt_len, "%.*s", main_w - prompt_len - 1, dm_input);
+    attroff(COLOR_PAIR(1));
+
+    /* ── Status Bar ── */
+    attron(COLOR_PAIR(3));
+    mvhline(rows - 1, 0, ' ', cols);
+    mvprintw(rows - 1, 1, " TAB: cycle friends  ENTER: send  `: go back  ESC: servers");
+    attroff(COLOR_PAIR(3));
+
+    move(rows - 2, main_x + 1 + prompt_len + dm_input_len);
+    refresh();
+}
+
+void handle_dms_input(int ch) {
+    if (active_dm_friend == -1) {
+        if (ch == '`' || ch == 27) current_screen = SCREEN_SERVERS;
+        return;
+    }
+
+    UIFriend *f = &ui_friends[active_dm_friend];
+
+    switch (ch) {
+        case '\t':
+            // Cycle through accepted friends
+            do {
+                active_dm_friend = (active_dm_friend + 1) % friend_count;
+            } while (ui_friends[active_dm_friend].type != 2 && friend_count > 0);
+            dm_input[0] = '\0';
+            dm_input_len = 0;
+            break;
+            
+        case '`':
+        case 27: // ESC
+            current_screen = SCREEN_SERVERS;
+            break;
+
+        case '\n':
+        case KEY_ENTER:
+            if (dm_input_len > 0) {
+                // 1. Send to server
+                send_dm_message(f->id, dm_input);
+                
+                // 2. Locally echo the message to our own screen
+                if (f->msg_count < MAX_MESSAGES) {
+                    Message *m = &f->messages[f->msg_count++];
+                    strncpy(m->sender, users[current_user].username, MAX_NAME_LEN - 1);
+                    strncpy(m->body, dm_input, MAX_MSG_LEN - 1);
+                    m->ts = time(NULL);
+                }
+                
+                dm_input[0] = '\0';
+                dm_input_len = 0;
+            }
+            break;
+
+        case KEY_BACKSPACE:
+        case 127:
+            if (dm_input_len > 0) dm_input[--dm_input_len] = '\0';
+            break;
+
+        default:
+            if (ch >= 32 && ch < 127 && dm_input_len < MAX_MSG_LEN - 1) {
+                dm_input[dm_input_len++] = (char)ch;
+                dm_input[dm_input_len] = '\0';
+            }
+            break;
+    }
+}
 
 void start_ui(void)
 {
@@ -1380,7 +1594,8 @@ void start_ui(void)
         case SCREEN_SERVERS: draw_server_list(rows, cols); break;
         case SCREEN_FRIENDS: draw_friends(rows, cols); break;
         case SCREEN_CHAT: draw_chat(rows, cols); break;
-        case SCREEN_COMMAND: draw_command(rows, cols); break; // FIXED warning
+        case SCREEN_COMMAND: draw_command(rows, cols); break;
+        case SCREEN_DMS: draw_dms(rows, cols); break;
     }
 
     // --- SINGLE THREADED EVENT LOOP ---
@@ -1442,6 +1657,7 @@ void start_ui(void)
                     case SCREEN_FRIENDS: handle_friends_input(ch); break;
                     case SCREEN_CHAT: handle_chat_input(ch); break;
                     case SCREEN_COMMAND: handle_command_input(ch); break;
+                    case SCREEN_DMS: handle_dms_input(ch); break;
                 }
                 needs_redraw = 1;
             }
@@ -1458,6 +1674,7 @@ void start_ui(void)
                 case SCREEN_FRIENDS: draw_friends(rows, cols); break;
                 case SCREEN_CHAT: draw_chat(rows, cols); break;
                 case SCREEN_COMMAND: draw_command(rows, cols); break;
+                case SCREEN_DMS: draw_dms(rows, cols); break;
             }
         }
     }

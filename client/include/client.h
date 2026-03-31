@@ -24,4 +24,6 @@ void request_server_channels(int64_t server_id);
 void request_server_members(int64_t server_id);
 void request_channel_history(int64_t channel_id);
 
+void send_dm_message(int64_t recipient_id, const char *message);
+
 #endif
