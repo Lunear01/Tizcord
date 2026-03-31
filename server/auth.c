@@ -42,7 +42,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
         return;
     }
     
-    sqlite3_int64 user_id;
+    int64_t user_id;
     int rc = db_create_user(ctx->db, packet->payload.auth.username, hash, &user_id);
     
     if (rc == 0) {
@@ -73,7 +73,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     }
     
     char db_hash[256] = {0};
-    sqlite3_int64 db_user_id = 0;
+    int64_t db_user_id = 0;
     int rc = db_get_password_hash(ctx->db, packet->payload.auth.username, db_hash, &db_user_id);
     
     if (rc != 0) {

@@ -27,6 +27,7 @@ typedef enum
     SCREEN_LOGIN,
     SCREEN_SIGNUP,
     SCREEN_SERVERS,
+    SCREEN_FRIENDS,
     SCREEN_CHAT,
     SCREEN_COMMAND
 } Screen;
@@ -78,6 +79,17 @@ int server_count = 0;
 Screen current_screen = SCREEN_LOGIN;
 int active_server = -1;
 int active_channel = 0;
+
+typedef struct {
+    int64_t id;
+    char username[MAX_NAME_LEN];
+    int type; // 1 = incoming, 0 = outgoing
+} UIFriend;
+
+#define MAX_FRIENDS 64
+UIFriend ui_friends[MAX_FRIENDS];
+int friend_count = 0;
+int friend_cursor = 0;
 
 Screen previous_screen = SCREEN_LOGIN;
 char cmd_input[MAX_MSG_LEN] = {0};
@@ -680,7 +692,7 @@ void draw_server_list(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  F1: Command Line");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  TAB: Friends  /: Command");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -690,6 +702,16 @@ void handle_server_input(int ch)
 {
     switch (ch)
     {
+    case '\t':
+        current_screen = SCREEN_FRIENDS;
+        request_friend_list();
+        break;
+    case '/':
+        previous_screen = current_screen;
+        current_screen = SCREEN_COMMAND;
+        cmd_input[0] = '/';
+        cmd_input_len = 1;
+        break;
     case KEY_UP:
         if (server_cursor > 0)
             server_cursor--;
@@ -984,6 +1006,14 @@ void handle_chat_input(int ch)
     }
 
     default:
+        if (ch == '/' && chat_input_len == 0) {
+            previous_screen = current_screen;
+            current_screen = SCREEN_COMMAND;
+            cmd_input[0] = '/';
+            cmd_input_len = 1;
+            break;
+        }
+
         if (ch >= 32 && ch < 127 && chat_input_len < MAX_MSG_LEN - 1)
         {
             chat_input[chat_input_len++] = (char)ch;
@@ -1130,8 +1160,20 @@ void handle_command_input(int ch)
 
         case '\n':
         case KEY_ENTER:
-            // TODO: Process the actual command text here if needed!
-            
+            if (strncmp(cmd_input, "/friend ", 8) == 0) {
+                char target_username[MAX_NAME_LEN] = {0};
+                strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                    target_username[strlen(target_username) - 1] = '\0';
+                }
+                
+                if (strlen(target_username) > 0) {
+                    send_friend_request(target_username);
+                }
+            }
+
             // Clear the input and return to the previous screen
             cmd_input[0] = '\0';
             cmd_input_len = 0;
@@ -1181,7 +1223,96 @@ void process_network_packet(TizcordPacket *packet) {
         case AUTH:
             ui_handle_auth_response(packet);
             break;
+        case SOCIAL:
+            if (packet->payload.social.action == SOCIAL_LIST_FRIENDS) {
+                if (packet->list_frame == LIST_FRAME_START) {
+                    friend_count = 0;
+                    friend_cursor = 0;
+                } else if (packet->list_frame == LIST_FRAME_MIDDLE && friend_count < MAX_FRIENDS) {
+                    ui_friends[friend_count].id = packet->payload.social.target_user_id;
+                    strncpy(ui_friends[friend_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
+                    ui_friends[friend_count].type = packet->payload.social.status_code;
+                    friend_count++;
+                }
+            }
+            break;
         default:
+            break;
+    }
+}
+
+void draw_friends(int rows, int cols) {
+    erase();
+    attron(COLOR_PAIR(10) | A_BOLD);
+    mvhline(0, 0, ' ', cols);
+    mvprintw(0, 2, " FRIENDS & REQUESTS");
+    if (current_user >= 0) {
+        const char *uname = users[current_user].username;
+        mvprintw(0, cols - (int)strlen(uname) - 3, "[%s]", uname);
+    }
+    attroff(COLOR_PAIR(10) | A_BOLD);
+
+    attron(COLOR_PAIR(4));
+    mvprintw(2, 3, "Pending Friend Requests.");
+    mvhline(3, 0, ACS_HLINE, cols);
+    attroff(COLOR_PAIR(4));
+
+    attron(COLOR_PAIR(9) | A_BOLD);
+    mvprintw(4, 3, "%-3s  %-20s  %s", "#", "USERNAME", "TYPE");
+    attroff(COLOR_PAIR(9) | A_BOLD);
+    attron(COLOR_PAIR(4));
+    mvhline(5, 0, ACS_HLINE, cols);
+    attroff(COLOR_PAIR(4));
+
+    for (int i = 0; i < friend_count; i++) {
+        int row = 6 + i * 2;
+        if (i == friend_cursor) {
+            attron(COLOR_PAIR(2) | A_BOLD);
+            mvhline(row, 0, ' ', cols);
+            mvprintw(row, 3, "%-3d  %-20s  %s", i + 1, ui_friends[i].username, ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
+            attroff(COLOR_PAIR(2) | A_BOLD);
+        } else {
+            attron(COLOR_PAIR(5) | A_BOLD);
+            mvprintw(row, 3, "%-3d", i + 1);
+            attroff(COLOR_PAIR(5) | A_BOLD);
+            attron(COLOR_PAIR(1));
+            mvprintw(row, 8, "%-20s", ui_friends[i].username);
+            attroff(COLOR_PAIR(1));
+            attron(COLOR_PAIR(4));
+            mvprintw(row, 30, "%s", ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
+            attroff(COLOR_PAIR(4));
+        }
+    }
+
+    attron(COLOR_PAIR(3));
+    mvhline(rows - 1, 0, ' ', cols);
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ESC: logout  TAB: Servers  /: Command");
+    attroff(COLOR_PAIR(3));
+    refresh();
+}
+
+void handle_friends_input(int ch) {
+    switch (ch) {
+        case '\t':
+            current_screen = SCREEN_SERVERS;
+            list_joined_servers_request();
+            break;
+        case '/':
+            previous_screen = current_screen;
+            current_screen = SCREEN_COMMAND;
+            cmd_input[0] = '/';
+            cmd_input_len = 1;
+            break;
+        case KEY_UP:
+            if (friend_cursor > 0) friend_cursor--;
+            break;
+        case KEY_DOWN:
+            if (friend_cursor < friend_count - 1) friend_cursor++;
+            break;
+        case 27:
+            current_user = -1;
+            active_server = -1;
+            current_screen = SCREEN_LOGIN;
             break;
     }
 }
@@ -1210,6 +1341,7 @@ void start_ui(void)
         case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
         case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
         case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+        case SCREEN_FRIENDS: draw_friends(rows, cols); break;
         case SCREEN_CHAT: draw_chat(rows, cols); break;
         case SCREEN_COMMAND: draw_command(rows, cols); break; // FIXED warning
     }
@@ -1262,15 +1394,7 @@ void start_ui(void)
                     goto exit_ui_loop; // Break out of nested loops cleanly
                 }
 
-                // Global F1 intercept to toggle command mode
-                if (ch == KEY_F(1) && current_screen != SCREEN_COMMAND) {
-                    previous_screen = current_screen;
-                    current_screen = SCREEN_COMMAND;
-                    cmd_input[0] = '\0';
-                    cmd_input_len = 0;
-                    needs_redraw = 1;
-                    continue;
-                }
+                // Let local inputs decide behavior based on the current screen
 
                 // Route input to the active screen
                 switch (current_screen)
@@ -1278,6 +1402,7 @@ void start_ui(void)
                     case SCREEN_LOGIN: handle_auth_input(ch, 0); break;
                     case SCREEN_SIGNUP: handle_auth_input(ch, 1); break;
                     case SCREEN_SERVERS: handle_server_input(ch); break;
+                    case SCREEN_FRIENDS: handle_friends_input(ch); break;
                     case SCREEN_CHAT: handle_chat_input(ch); break;
                     case SCREEN_COMMAND: handle_command_input(ch); break;
                 }
@@ -1293,6 +1418,7 @@ void start_ui(void)
                 case SCREEN_LOGIN: draw_auth(rows, cols, 0); break;
                 case SCREEN_SIGNUP: draw_auth(rows, cols, 1); break;
                 case SCREEN_SERVERS: draw_server_list(rows, cols); break;
+                case SCREEN_FRIENDS: draw_friends(rows, cols); break;
                 case SCREEN_CHAT: draw_chat(rows, cols); break;
                 case SCREEN_COMMAND: draw_command(rows, cols); break;
             }

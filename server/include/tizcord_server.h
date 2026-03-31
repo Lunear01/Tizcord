@@ -10,7 +10,7 @@ void get_tizcord_server_info(ServerContext* ctx, ClientNode *client, int64_t ser
 void delete_tizcord_server(ServerContext* ctx, ClientNode *client, int64_t server_id);
 void edit_tizcord_server(ServerContext* ctx, ClientNode *client, int64_t server_id, const char* new_name);
 void list_tizcord_servers(ServerContext* ctx, ClientNode *client);
-void list_channels(ServerContext* ctx, ClientNode *client, int64_t server_id);
+void list_tizcord_channels(ServerContext* ctx, ClientNode *client, int64_t server_id);
 void list_members(ServerContext* ctx, ClientNode *client, int64_t server_id);
 void list_joined_servers(ServerContext* ctx, ClientNode *client);
 void kick_server_member(ServerContext* ctx, ClientNode *client, int64_t server_id, int64_t target_user_id);
