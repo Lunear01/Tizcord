@@ -1172,6 +1172,18 @@ void handle_command_input(int ch)
                 if (strlen(target_username) > 0) {
                     send_friend_request(target_username);
                 }
+            } else if (strncmp(cmd_input, "/accept ", 8) == 0) {
+                char target_username[MAX_NAME_LEN] = {0};
+                strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                    target_username[strlen(target_username) - 1] = '\0';
+                }
+                
+                if (strlen(target_username) > 0) {
+                    accept_friend_request(target_username);
+                }
             }
 
             // Clear the input and return to the previous screen
@@ -1252,37 +1264,79 @@ void draw_friends(int rows, int cols) {
     }
     attroff(COLOR_PAIR(10) | A_BOLD);
 
+    int total_friends = 0;
+    for (int i = 0; i < friend_count; i++) {
+        if (ui_friends[i].type == 2) total_friends++;
+    }
+
+    int current_y = 2;
+    
+    // ─── Section 1: Accepted Friends ───
     attron(COLOR_PAIR(4));
-    mvprintw(2, 3, "Pending Friend Requests.");
-    mvhline(3, 0, ACS_HLINE, cols);
+    mvprintw(current_y++, 3, "FRIENDS (%d)", total_friends);
+    mvhline(current_y++, 0, ACS_HLINE, cols);
     attroff(COLOR_PAIR(4));
 
     attron(COLOR_PAIR(9) | A_BOLD);
-    mvprintw(4, 3, "%-3s  %-20s  %s", "#", "USERNAME", "TYPE");
+    mvprintw(current_y++, 3, "%-3s  %-20s  %s", "#", "USERNAME", "STATUS");
     attroff(COLOR_PAIR(9) | A_BOLD);
-    attron(COLOR_PAIR(4));
-    mvhline(5, 0, ACS_HLINE, cols);
-    attroff(COLOR_PAIR(4));
-
+    
     for (int i = 0; i < friend_count; i++) {
-        int row = 6 + i * 2;
-        if (i == friend_cursor) {
-            attron(COLOR_PAIR(2) | A_BOLD);
-            mvhline(row, 0, ' ', cols);
-            mvprintw(row, 3, "%-3d  %-20s  %s", i + 1, ui_friends[i].username, ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
-            attroff(COLOR_PAIR(2) | A_BOLD);
-        } else {
-            attron(COLOR_PAIR(5) | A_BOLD);
-            mvprintw(row, 3, "%-3d", i + 1);
-            attroff(COLOR_PAIR(5) | A_BOLD);
-            attron(COLOR_PAIR(1));
-            mvprintw(row, 8, "%-20s", ui_friends[i].username);
-            attroff(COLOR_PAIR(1));
-            attron(COLOR_PAIR(4));
-            mvprintw(row, 30, "%s", ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
-            attroff(COLOR_PAIR(4));
+        if (ui_friends[i].type == 2) {
+            int row = current_y++;
+            if (i == friend_cursor) {
+                attron(COLOR_PAIR(2) | A_BOLD);
+                mvhline(row, 0, ' ', cols);
+                mvprintw(row, 3, "%-3d  %-20s  %s", i + 1, ui_friends[i].username, "FRIEND");
+                attroff(COLOR_PAIR(2) | A_BOLD);
+            } else {
+                attron(COLOR_PAIR(5) | A_BOLD);
+                mvprintw(row, 3, "%-3d", i + 1);
+                attroff(COLOR_PAIR(5) | A_BOLD);
+                attron(COLOR_PAIR(1));
+                mvprintw(row, 8, "%-20s", ui_friends[i].username);
+                attroff(COLOR_PAIR(1));
+                attron(COLOR_PAIR(4));
+                mvprintw(row, 30, "FRIEND");
+                attroff(COLOR_PAIR(4));
+            }
         }
     }
+
+    current_y++; // spacer
+
+    // ─── Section 2: Pending Requests ───
+    attron(COLOR_PAIR(4));
+    mvprintw(current_y++, 3, "PENDING REQUESTS");
+    mvhline(current_y++, 0, ACS_HLINE, cols);
+    attroff(COLOR_PAIR(4));
+
+    attron(COLOR_PAIR(9) | A_BOLD);
+    mvprintw(current_y++, 3, "%-3s  %-20s  %s", "#", "USERNAME", "TYPE");
+    attroff(COLOR_PAIR(9) | A_BOLD);
+
+    for (int i = 0; i < friend_count; i++) {
+        if (ui_friends[i].type != 2) {
+            int row = current_y++;
+            if (i == friend_cursor) {
+                attron(COLOR_PAIR(2) | A_BOLD);
+                mvhline(row, 0, ' ', cols);
+                mvprintw(row, 3, "%-3d  %-20s  %s", i + 1, ui_friends[i].username, ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
+                attroff(COLOR_PAIR(2) | A_BOLD);
+            } else {
+                attron(COLOR_PAIR(5) | A_BOLD);
+                mvprintw(row, 3, "%-3d", i + 1);
+                attroff(COLOR_PAIR(5) | A_BOLD);
+                attron(COLOR_PAIR(1));
+                mvprintw(row, 8, "%-20s", ui_friends[i].username);
+                attroff(COLOR_PAIR(1));
+                attron(COLOR_PAIR(4));
+                mvprintw(row, 30, "%s", ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
+                attroff(COLOR_PAIR(4));
+            }
+        }
+    }
+
 
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);

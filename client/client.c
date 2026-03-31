@@ -132,8 +132,9 @@ void accept_friend_request(const char *target_username) {
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(SOCIAL);
-    // packet.payload.social.action = SOCIAL_FRIEND_ACCEPT;
-    // strncpy(packet.receiver, target_username, sizeof(packet.receiver) - 1); // DEPRECATED
+    packet.payload.social.action = SOCIAL_FRIEND_ACCEPT;
+    strncpy(packet.payload.social.target_username, target_username, sizeof(packet.payload.social.target_username) - 1);
+    packet.payload.social.target_username[sizeof(packet.payload.social.target_username) - 1] = '\0';
 
     // printf("[Client] Accepting friend request from %s...\n", target_username);
     write(client_socket, &packet, sizeof(TizcordPacket));
