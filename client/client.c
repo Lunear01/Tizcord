@@ -207,3 +207,15 @@ void join_server(int64_t server_id) {
     packet.payload.server.server_id = server_id;
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
+
+void send_dm_message(int64_t recipient_id, const char *message) {
+    if (client_socket < 0) return;
+    
+    TizcordPacket packet = create_base_packet(DM);
+    packet.payload.dm.action = DM_MESSAGE;
+    packet.payload.dm.recipient_id = recipient_id;
+    
+    strncpy(packet.payload.dm.message, message, MESSAGE_LEN - 1);
+    
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}

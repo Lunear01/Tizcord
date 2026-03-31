@@ -166,6 +166,7 @@ void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket
             break;
         case DM:
             printf("[Server] Received DM packet\n");
+            handle_chat_packet(ctx, packet, client->socket_fd);
             break;
         case SERVER:
             printf("[Server] Received SERVER packet\n");

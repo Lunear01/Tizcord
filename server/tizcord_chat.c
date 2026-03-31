@@ -178,11 +178,26 @@ void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd
 
 void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (packet->payload.dm.action == DM_MESSAGE) {
+        
+        // 1. Find the sender to securely get their ID
+        ClientNode *sender_node = NULL;
+        for (int i = 0; i < ctx->client_count; i++) {
+            if (ctx->clients[i].socket_fd == sender_fd) {
+                sender_node = &ctx->clients[i];
+                break;
+            }
+        }
+        
+        if (sender_node != NULL) {
+            // Stamp the authoritative sender ID onto the packet
+            packet->sender_id = sender_node->id;
+        }
+
         printf("[Chat] Routing DM from %lld to %lld\n", 
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
         
         int found = 0;
-        // Find recipient by matching username in the active client array
+        // 2. Find recipient by matching ID in the active client array
         for (int i = 0; i < ctx->client_count; i++) {
             if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
                 
@@ -205,7 +220,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             
             write(sender_fd, &error_reply, sizeof(TizcordPacket));
         }
-    } 
+    }
     else if (packet->payload.dm.action == DM_MESSAGE_EDIT) {
         printf("[Chat] Edit DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
         
