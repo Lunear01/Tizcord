@@ -66,6 +66,7 @@ typedef struct
     int member_count;
     char member_names[MAX_USERS][MAX_NAME_LEN];
     int member_is_admin[MAX_USERS];
+    int64_t member_ids[MAX_USERS];
     UIChannel channels[UI_MAX_CHANNELS];
     int channel_count;
 } UIServer;
@@ -1090,10 +1091,27 @@ void ui_update_server_state(TizcordPacket *packet) {
             
             if (packet->list_total > 0 && sv->member_count < MAX_USERS) {
                 int m_idx = sv->member_count++;
+                
                 strncpy(sv->member_names[m_idx], packet->payload.server.server_name, MAX_NAME_LEN - 1);
+                sv->member_is_admin[m_idx] = packet->payload.server.member_count; 
 
-                sv->member_is_admin[m_idx] = packet->payload.server.member_count;
+                sv->member_ids[m_idx] = packet->payload.server.server_id;
             }
+        }
+    } 
+    else if (packet->payload.server.action == SERVER_KICK_MEMBER) {
+        if (packet->payload.server.status_code == 0) {
+            command_status_msg[0] = '\0';
+            if (current_screen == SCREEN_COMMAND) {
+                cmd_input[0] = '\0';
+                cmd_input_len = 0;
+                current_screen = previous_screen;
+            }
+            if (active_server >= 0) {
+                request_server_members(servers[active_server].id);
+            }
+        } else {
+            strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
         }
     }
 }
@@ -1187,6 +1205,40 @@ void handle_command_input(int ch)
                 if (strlen(server_name) > 0) {
                     create_server(server_name);
                 }
+            } else if (strncmp(cmd_input, "/kick ", 6) == 0) {
+                should_close = 0; // Wait for server response
+                
+                if (previous_screen != SCREEN_CHAT) {
+                    strcpy(command_status_msg, "Error: You must enter the server to kick members.");
+                } else if (active_server >= 0 && active_server < server_count) {
+                    char target_username[MAX_NAME_LEN] = {0};
+                    strncpy(target_username, cmd_input + 6, MAX_NAME_LEN - 1);
+                    
+                    // Trim trailing spaces
+                    while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                        target_username[strlen(target_username) - 1] = '\0';
+                    }
+                    
+                    if (strlen(target_username) > 0) {
+                        int64_t target_id = -1;
+                        UIServer *sv = &servers[active_server];
+                        
+                        // Look up the database ID based on the typed username
+                        for (int i = 0; i < sv->member_count; i++) {
+                            if (strcmp(sv->member_names[i], target_username) == 0) {
+                                target_id = sv->member_ids[i];
+                                break;
+                            }
+                        }
+                        
+                        if (target_id != -1) {
+                            kick_server_member(sv->id, target_id);
+                            strcpy(command_status_msg, "Sending kick request...");
+                        } else {
+                            strcpy(command_status_msg, "Error: User not found in server.");
+                        }
+                    }
+                } 
             } else if (strncmp(cmd_input, "/createchannel ", 15) == 0) {
                 should_close = 0; // WAIT FOR SERVER RESPONSE
 

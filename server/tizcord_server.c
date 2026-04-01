@@ -288,7 +288,7 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
     int is_admin = 0;
     if (db_user_is_server_admin(ctx->db, server_id, client->id, &is_admin) != 0 || !is_admin) {
         fprintf(stderr, "[Server] Unauthorized server delete attempt by id=%lld\n", (long long)client->id);
-        send_action_response(client->socket_fd, SERVER, SERVER_DELETE, RESP_ERR_UNAUTHORIZED, NULL);
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_DELETE, RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
 
@@ -431,7 +431,7 @@ void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
     }
 
     if (send_list_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
-                           acc.name_ptrs, acc.ids, NULL, acc.count) != 0) {
+                           acc.name_ptrs, acc.ids, acc.status_codes, acc.count) != 0) {
         send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_INTERNAL, NULL);
     }

@@ -11,6 +11,7 @@ void delete_server(int64_t server_id);
 void leave_server(int server_id);
 void list_all_servers_request(void);
 void join_server(int64_t server_id);
+void kick_server_member(int64_t server_id, int64_t target_user_id);
 
 void create_channel(int server_id, const char *channel_name);
 void delete_channel(int64_t channel_id);
