@@ -160,24 +160,24 @@ int handle_new_connection(ServerContext *ctx) {
 // Handle individual client communication
 void process_client_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet) {
     switch (packet->type) {
-        case AUTH:
-            printf("[Server] Received AUTH packet\n");
+        case PACKET_AUTH:
+            printf("[Server] Received PACKET_AUTH packet\n");
             handle_auth_packet(ctx, client->socket_fd, packet);
             break;
-        case DM:
-            printf("[Server] Received DM packet\n");
+        case PACKET_DM:
+            printf("[Server] Received PACKET_DM packet\n");
             handle_chat_packet(ctx, packet, client->socket_fd);
             break;
-        case SERVER:
-            printf("[Server] Received SERVER packet\n");
+        case PACKET_SERVER:
+            printf("[Server] Received PACKET_SERVER packet\n");
             handle_server_packet(ctx, client, packet);
             break;
-        case CHANNEL:
-            printf("[Server] Received CHANNEL packet\n");
+        case PACKET_CHANNEL:
+            printf("[Server] Received PACKET_CHANNEL packet\n");
             handle_chat_packet(ctx, packet, client->socket_fd);
             break;
-        case SOCIAL :
-            printf("[Server] Received SOCIAL packet\n");
+        case PACKET_SOCIAL :
+            printf("[Server] Received PACKET_SOCIAL packet\n");
             handle_social_packet(ctx, client, packet);
             break;
         default:

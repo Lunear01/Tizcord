@@ -514,7 +514,7 @@ void handle_auth_input(int ch, int is_signup)
 }
 
 
-// ─── Screen: SERVER LIST ─────────────────────────────────────────────────────
+// ─── Screen: PACKET_SERVER LIST ─────────────────────────────────────────────────────
 
 int server_cursor = 0; /* highlighted row */
 
@@ -525,7 +525,7 @@ void draw_server_list(int rows, int cols)
     /* ── Top bar ── */
     attron(COLOR_PAIR(10) | A_BOLD);
     mvhline(0, 0, ' ', cols);
-    mvprintw(0, 2, " SERVER BROWSER");
+    mvprintw(0, 2, " PACKET_SERVER BROWSER");
     if (current_user >= 0)
     {
         const char *uname = users[current_user].username;
@@ -541,7 +541,7 @@ void draw_server_list(int rows, int cols)
 
     /* ── Column headers ── */
     attron(COLOR_PAIR(9) | A_BOLD);
-    mvprintw(4, 3, "%-3s  %-20s  %-36s  %s", "#", "SERVER", "DESCRIPTION", "MEMBERS");
+    mvprintw(4, 3, "%-3s  %-20s  %-36s  %s", "#", "PACKET_SERVER", "DESCRIPTION", "MEMBERS");
     attroff(COLOR_PAIR(9) | A_BOLD);
     attron(COLOR_PAIR(4));
     mvhline(5, 0, ACS_HLINE, cols);
@@ -664,7 +664,7 @@ void handle_server_input(int ch)
     }
     case '`': // The backtick key
             current_screen = SCREEN_DMS;
-            request_friend_list(); // Refresh the friend list so we have people to DM
+            request_friend_list(); // Refresh the friend list so we have people to PACKET_DM
             break;
     }
 }
@@ -1217,7 +1217,7 @@ void handle_command_input(int ch)
 // Process incoming network data
 void process_network_packet(TizcordPacket *packet) {
     switch (packet->type) {
-        case CHANNEL:
+        case PACKET_CHANNEL:
             if (packet->payload.channel.action == CHANNEL_MESSAGE) {
                 ui_receive_channel_message(packet);
             } else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
@@ -1230,18 +1230,18 @@ void process_network_packet(TizcordPacket *packet) {
                 }
             }
             break;
-        case DM:
+        case PACKET_DM:
             if (packet->payload.dm.action == DM_MESSAGE) {
                 ui_receive_dm_message(packet);
             }
             break;
-        case SERVER:
+        case PACKET_SERVER:
             ui_update_server_state(packet);
             break;
-        case AUTH:
+        case PACKET_AUTH:
             ui_handle_auth_response(packet);
             break;
-        case SOCIAL:
+        case PACKET_SOCIAL:
             if (packet->payload.social.action == SOCIAL_LIST_FRIENDS) {
                 if (packet->list_frame == LIST_FRAME_START) {
                     friend_count = 0;

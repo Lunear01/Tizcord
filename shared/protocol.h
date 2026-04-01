@@ -13,12 +13,11 @@
 #define SYSTEM_MESSAGE_LEN 256
 
 typedef enum {
-    AUTH,
-    DM,
-    SERVER,
-    CHANNEL,
-    SOCIAL,
-    SYSTEM,
+    PACKET_AUTH,
+    PACKET_DM,
+    PACKET_SERVER,
+    PACKET_CHANNEL,
+    PACKET_SOCIAL,
 } PacketType;
 
 typedef enum { 
