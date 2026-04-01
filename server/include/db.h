@@ -41,6 +41,7 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id);
 /* Channel */
 int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
+int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_id_out);
 int db_delete_channel(DbContext* db, int64_t channel_id);
 int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata);
 

@@ -87,27 +87,58 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
     }
     else if (packet->payload.channel.action == CHANNEL_CREATE) {
-        printf("[Chat] Create channel request: %s in Server ID: %lld\n", 
-               packet->payload.channel.channel_name, (long long)packet->payload.channel.server_id);
-        
         TizcordPacket reply = create_base_packet(CHANNEL);
         reply.payload.channel.action = CHANNEL_CREATE;
         reply.payload.channel.server_id = packet->payload.channel.server_id;
         
-        int64_t new_channel_id = 0;
+        int is_admin = 0;
         
-        // Pass the reference to new_channel_id
-        if (ctx->db != NULL && db_create_channel(ctx->db, packet->payload.channel.server_id, packet->payload.channel.channel_name, &new_channel_id) == 0) {
-            reply.payload.channel.status_code = 0; // Success
-            reply.payload.channel.channel_id = new_channel_id; // Attach the new ID
-            strncpy(reply.payload.channel.channel_name, packet->payload.channel.channel_name, MAX_NAME_LEN - 1);
+        // ADMIN CHECK
+        if (sender_node != NULL && ctx->db != NULL &&
+            db_user_is_server_admin(ctx->db, packet->payload.channel.server_id, sender_node->id, &is_admin) == 0 && is_admin) {
+            
+            int64_t new_channel_id = 0;
+            if (db_create_channel(ctx->db, packet->payload.channel.server_id, packet->payload.channel.channel_name, &new_channel_id) == 0) {
+                reply.payload.channel.status_code = 0; 
+                reply.payload.channel.channel_id = new_channel_id; 
+                strncpy(reply.payload.channel.channel_name, packet->payload.channel.channel_name, MAX_NAME_LEN - 1);
+            } else {
+                reply.payload.channel.status_code = -5; 
+            }
         } else {
-            reply.payload.channel.status_code = -5; // Database Error
+            reply.payload.channel.status_code = 401; // Unauthorized
         }
-        
         write(sender_fd, &reply, sizeof(TizcordPacket));
-    }
-    else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
+    } else if (packet->payload.channel.action == CHANNEL_DELETE) {
+        int is_admin = 0;
+        int64_t server_id = 0;
+        
+        TizcordPacket reply = create_base_packet(CHANNEL);
+        reply.payload.channel.action = CHANNEL_DELETE;
+        reply.payload.channel.channel_id = packet->payload.channel.channel_id;
+        
+        if (sender_node != NULL && ctx->db != NULL) {
+            
+            // Get the server ID this channel belongs to
+            if (db_get_channel_server_id(ctx->db, packet->payload.channel.channel_id, &server_id) == 0) {
+                
+                // ADMIN CHECK
+                if (db_user_is_server_admin(ctx->db, server_id, sender_node->id, &is_admin) == 0 && is_admin) {
+                    
+                    if (db_delete_channel(ctx->db, packet->payload.channel.channel_id) == 0) {
+                        reply.payload.channel.status_code = 0;
+                    } else {
+                        reply.payload.channel.status_code = -5;
+                    }
+                } else {
+                    reply.payload.channel.status_code = 401; // Unauthorized
+                }
+            } else {
+                reply.payload.channel.status_code = RESP_ERR_NOT_FOUND;
+            }
+        }
+        write(sender_fd, &reply, sizeof(TizcordPacket));
+    } else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
         printf("[Chat] Edit channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
         
         if (ctx->db != NULL) {
@@ -122,18 +153,39 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                           sender_fd);
     } 
     else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
-        printf("[Chat] Delete channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
+        int is_admin = 0;
+        int64_t target_channel_id = 0;
         
-        if (ctx->db != NULL) {
-            db_delete_message(ctx->db, packet->payload.channel.message_id);
+        TizcordPacket reply = create_base_packet(CHANNEL);
+        reply.payload.channel.action = CHANNEL_DELETE;
+        
+        // Ensure the database is available and the sender is a known active client
+        if (sender_node != NULL && ctx->db != NULL) {
+            
+            // Verify the user is an admin of the server they are trying to modify
+            if (db_user_is_server_admin(ctx->db, packet->payload.channel.server_id, sender_node->id, &is_admin) == 0 && is_admin) {
+                
+                // Fetch the channel ID using your new function
+                // (Assuming your client sends the channel_name and server_id to be deleted)
+                if (db_get_channel_id(ctx->db, packet->payload.channel.server_id, packet->payload.channel.channel_name, &target_channel_id) == 0) {
+                    
+                    // Delete the channel
+                    if (db_delete_channel(ctx->db, target_channel_id) == 0) {
+                        reply.payload.channel.status_code = 0; // Success
+                    } else {
+                        reply.payload.channel.status_code = -5; // DB Error
+                    }
+                } else {
+                    reply.payload.channel.status_code = RESP_ERR_NOT_FOUND; // Channel doesn't exist
+                }
+            } else {
+                reply.payload.channel.status_code = RESP_ERR_UNAUTHORIZED; // Not an admin
+            }
+        } else {
+             reply.payload.channel.status_code = RESP_ERR_INTERNAL;
         }
-
-        // Broadcast the delete packet to everyone in the channel
-        channel_broadcast(ctx, 
-                          packet->payload.channel.channel_id, 
-                          (const char*)packet, 
-                          sizeof(TizcordPacket), 
-                          sender_fd);
+        
+        write(sender_fd, &reply, sizeof(TizcordPacket));
     }
     else if (packet->payload.channel.action == CHANNEL_HISTORY_REQUEST) {
         printf("[Chat] History request for Channel ID: %lld\n", (long long)packet->payload.channel.channel_id);

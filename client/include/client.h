@@ -7,12 +7,13 @@ int send_register(const char *username, const char *password);
 int send_login(const char *username, const char *password);
 
 void create_server(const char *server_name);
+void delete_server(int64_t server_id);
 void leave_server(int server_id);
 void list_all_servers_request(void);
 void join_server(int64_t server_id);
 
 void create_channel(int server_id, const char *channel_name);
-void send_channel_message(int64_t channel_id, const char *message);
+void delete_channel(int64_t channel_id);
 void send_channel_message(int64_t channel_id, const char *message);
 
 void send_friend_request(const char *target_username);

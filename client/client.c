@@ -100,14 +100,20 @@ void create_channel(int server_id, const char *channel_name) {
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
-void delete_channel(int channel_id) {
+void delete_server(int64_t server_id) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(SERVER);
+    packet.payload.server.action = SERVER_DELETE;
+    packet.payload.server.server_id = server_id;
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void delete_channel(int64_t channel_id) { 
     if (client_socket < 0) return;
 
     TizcordPacket packet = create_base_packet(CHANNEL);
     packet.payload.channel.action = CHANNEL_DELETE;
-    
-    // FIX: Assign the integer directly
-    packet.payload.channel.channel_id = channel_id; 
+    packet.payload.channel.channel_id = channel_id;
 
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
@@ -219,3 +225,4 @@ void send_dm_message(int64_t recipient_id, const char *message) {
     
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
+

@@ -30,6 +30,7 @@ typedef struct {
     char names[MAX_SERVER_MEMBERS][MAX_NAME_LEN];
     const char *name_ptrs[MAX_SERVER_MEMBERS];
     int64_t ids[MAX_SERVER_MEMBERS];
+    int status_codes[MAX_SERVER_MEMBERS];
     size_t count;
     int truncated;
 } MemberListAccumulator;
@@ -78,7 +79,6 @@ static void collect_channel_list_item(int64_t channel_id,
 
 static void collect_member_list_item(int64_t user_id, const char *username,
                                      int is_admin, void *userdata) {
-    (void)is_admin;
     MemberListAccumulator *acc = (MemberListAccumulator *)userdata;
     if (acc == NULL) {
         return;
@@ -90,6 +90,8 @@ static void collect_member_list_item(int64_t user_id, const char *username,
     }
 
     acc->ids[acc->count] = user_id;
+    acc->status_codes[acc->count] = is_admin;
+
     strncpy(acc->names[acc->count], username != NULL ? username : "",
             MAX_NAME_LEN - 1);
     acc->names[acc->count][MAX_NAME_LEN - 1] = '\0';
@@ -283,6 +285,13 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
         return;
     }
 
+    int is_admin = 0;
+    if (db_user_is_server_admin(ctx->db, server_id, client->id, &is_admin) != 0 || !is_admin) {
+        fprintf(stderr, "[Server] Unauthorized server delete attempt by id=%lld\n", (long long)client->id);
+        send_action_response(client->socket_fd, SERVER, SERVER_DELETE, RESP_ERR_UNAUTHORIZED, NULL);
+        return;
+    }
+
     if (db_delete_server(ctx->db, server_id, client->id) == 0) {
         printf("[Server] User id=%lld deleted server id=%lld\n", (long long)client->id,
                (long long)server_id);
@@ -422,7 +431,7 @@ void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
     }
 
     if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
-                           acc.name_ptrs, acc.ids, NULL, acc.count) != 0) {
+                           acc.name_ptrs, acc.ids, acc.status_codes, acc.count) != 0) {
         send_action_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_INTERNAL, NULL);
     }

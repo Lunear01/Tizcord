@@ -660,3 +660,61 @@ int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_
     
     return -1;
 }
+
+int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out) {
+    const char* sql = "SELECT id FROM channels WHERE server_id = ? AND name = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    sqlite3_bind_int64(stmt, 1, server_id);
+    sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+    
+    int rc = sqlite3_step(stmt);
+    
+    if (rc == SQLITE_ROW && channel_id_out != NULL) {
+        *channel_id_out = sqlite3_column_int64(stmt, 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_ROW) ? 0 : -1;
+}
+
+int db_delete_channel(DbContext* db, int64_t channel_id) {
+    const char* sql = "DELETE FROM channels WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    sqlite3_bind_int64(stmt, 1, channel_id);
+    
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+// Add to db.c
+int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_id_out) {
+    const char* sql = "SELECT server_id FROM channels WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    sqlite3_bind_int64(stmt, 1, channel_id);
+    
+    int rc = sqlite3_step(stmt);
+    
+    if (rc == SQLITE_ROW && server_id_out != NULL) {
+        *server_id_out = sqlite3_column_int64(stmt, 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_ROW) ? 0 : -1;
+}
