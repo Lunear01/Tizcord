@@ -1,11 +1,11 @@
 /* chat methods */
-#include "../include/tizcord_chat.h"
-#include "../include/server.h"
 #include "../shared/protocol.h"
+#include "../shared/packet_helper.h"
+#include "../include/server.h"
 #include "../include/db.h"
 #include "../include/tizcord_channel.h"
+#include "../include/tizcord_chat.h"
 #include "../include/tizcord_server.h"
-#include "../shared/packet_helper.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -22,7 +22,7 @@ typedef struct {
 
 static void message_history_cb(int64_t msg_id, const char* username, const char* content, int64_t timestamp, void* userdata) {
     MessageHistoryContext *ctx = (MessageHistoryContext *)userdata;
-    TizcordPacket packet = create_base_packet(CHANNEL);
+    TizcordPacket packet = create_base_packet(PACKET_CHANNEL);
     
     packet.payload.channel.action = CHANNEL_MESSAGE;
     packet.list_id = ctx->list_id;
@@ -87,7 +87,10 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
     }
     else if (packet->payload.channel.action == CHANNEL_CREATE) {
-        TizcordPacket reply = create_base_packet(CHANNEL);
+        printf("[Chat] Create channel request: %s in Server ID: %lld\n", 
+               packet->payload.channel.channel_name, (long long)packet->payload.channel.server_id);
+        
+        TizcordPacket reply = create_base_packet(PACKET_CHANNEL);
         reply.payload.channel.action = CHANNEL_CREATE;
         reply.payload.channel.server_id = packet->payload.channel.server_id;
         
@@ -198,7 +201,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         };
 
         // Send START frame
-        TizcordPacket start_pkt = create_base_packet(CHANNEL);
+        TizcordPacket start_pkt = create_base_packet(PACKET_CHANNEL);
         start_pkt.payload.channel.action = CHANNEL_MESSAGE;
         start_pkt.list_id = cb_ctx.list_id;
         start_pkt.list_frame = LIST_FRAME_START;
@@ -210,7 +213,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
 
         // Send END frame
-        TizcordPacket end_pkt = create_base_packet(CHANNEL);
+        TizcordPacket end_pkt = create_base_packet(PACKET_CHANNEL);
         end_pkt.payload.channel.action = CHANNEL_MESSAGE;
         end_pkt.list_id = cb_ctx.list_id;
         end_pkt.list_frame = LIST_FRAME_END;
@@ -221,9 +224,9 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
 void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (!ctx || !packet) return;
 
-    if (packet->type == DM) {
+    if (packet->type == PACKET_DM) {
         handle_private_message(ctx, packet, sender_fd);
-    } else if (packet->type == CHANNEL) {
+    } else if (packet->type == PACKET_CHANNEL) {
         handle_channel_message(ctx, packet, sender_fd);
     }
 }
@@ -245,7 +248,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             packet->sender_id = sender_node->id;
         }
 
-        printf("[Chat] Routing DM from %lld to %lld\n", 
+        printf("[Chat] Routing PACKET_DM from %lld to %lld\n", 
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
         
         int found = 0;
@@ -255,7 +258,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
                 
                 // Forward the exact packet to the receiver's socket
                 write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
-                printf("[Chat] DM delivered to ID %lld\n", (long long)packet->payload.dm.recipient_id);
+                printf("[Chat] PACKET_DM delivered to ID %lld\n", (long long)packet->payload.dm.recipient_id);
                 found = 1;
                 break;
             }
@@ -274,7 +277,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
     }
     else if (packet->payload.dm.action == DM_MESSAGE_EDIT) {
-        printf("[Chat] Edit DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
+        printf("[Chat] Edit PACKET_DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
         
         if (ctx->db != NULL) {
             db_edit_message(ctx->db, packet->payload.dm.message_id, packet->payload.dm.message);
@@ -289,7 +292,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
     } 
     else if (packet->payload.dm.action == DM_MESSAGE_DELETE) {
-        printf("[Chat] Delete DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
+        printf("[Chat] Delete PACKET_DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
         
         if (ctx->db != NULL) {
             db_delete_message(ctx->db, packet->payload.dm.message_id);

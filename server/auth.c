@@ -13,7 +13,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     
     TizcordPacket reply;
     memset(&reply, 0, sizeof(TizcordPacket));
-    reply.type = AUTH;
+    reply.type = PACKET_AUTH;
     reply.payload.auth.action = AUTH_REGISTER;
     
     printf("[Server] Step 1: Generating yescrypt salt...\n");
@@ -48,6 +48,15 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     if (rc == 0) {
         printf("[Server] Successfully registered user! ID: %lld\n", (long long)user_id);
         reply.payload.auth.status_code = 0;
+
+        for (int i = 0; i < ctx->client_count; i++) {
+            if (ctx->clients[i].socket_fd == client_fd) {
+                ctx->clients[i].is_authenticated = 1;
+                ctx->clients[i].id = user_id;
+                strncpy(ctx->clients[i].username, packet->payload.auth.username, sizeof(ctx->clients[i].username) - 1);
+                break;
+            }
+        }
     } else {
         printf("[Server] Failed to register user (Username likely already exists!).\n");
         reply.payload.auth.status_code = 1;
@@ -62,7 +71,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     
     TizcordPacket reply;
     memset(&reply, 0, sizeof(TizcordPacket));
-    reply.type = AUTH;
+    reply.type = PACKET_AUTH;
     reply.payload.auth.action = AUTH_LOGIN;
     
     if (ctx == NULL || ctx->db == NULL) {

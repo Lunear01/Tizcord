@@ -40,23 +40,23 @@ int send_action_response(int client_fd, PacketType type, int action, int status_
 	response.type = type;
 
 	switch (type) {
-		case AUTH:
+		case PACKET_AUTH:
 			response.payload.auth.action = (AuthAction)action;
 			response.payload.auth.status_code = status_code;
 			break;
-		case DM:
+		case PACKET_DM:
 			response.payload.dm.action = (DMAction)action;
 			response.payload.dm.status_code = status_code;
 			break;
-		case SERVER:
+		case PACKET_SERVER:
 			response.payload.server.action = (ServerAction)action;
 			response.payload.server.status_code = status_code;
 			break;
-		case CHANNEL:
+		case PACKET_CHANNEL:
 			response.payload.channel.action = (ChannelAction)action;
 			response.payload.channel.status_code = status_code;
 			break;
-		case SOCIAL:
+		case PACKET_SOCIAL:
 			response.payload.social.action = (SocialAction)action;
 			response.payload.social.status_code = status_code;
 			break;
@@ -107,15 +107,15 @@ int send_list_response(int client_fd, PacketType type, int action,
 		empty_packet.list_frame = LIST_FRAME_SINGLE;
 
 		switch (type) {
-			case SERVER:
+			case PACKET_SERVER:
 				empty_packet.payload.server.action = (ServerAction)action;
 				empty_packet.payload.server.status_code = RESP_DONE;
 				break;
-			case CHANNEL:
+			case PACKET_CHANNEL:
 				empty_packet.payload.channel.action = (ChannelAction)action;
 				empty_packet.payload.channel.status_code = RESP_DONE;
 				break;
-			case SOCIAL:
+			case PACKET_SOCIAL:
 				empty_packet.payload.social.action = (SocialAction)action;
 				empty_packet.payload.social.status_code = RESP_DONE;
 				break;
@@ -146,7 +146,7 @@ int send_list_response(int client_fd, PacketType type, int action,
 		}
 
 		switch (type) {
-			case SERVER:
+			case PACKET_SERVER:
 				item_packet.payload.server.action = (ServerAction)action;
 				item_packet.payload.server.status_code = RESP_OK;
 				if (item_ids != NULL) {
@@ -157,7 +157,7 @@ int send_list_response(int client_fd, PacketType type, int action,
                 }
 				strncpy(item_packet.payload.server.server_name, items[i], MAX_NAME_LEN - 1);
 				break;
-			case CHANNEL:
+			case PACKET_CHANNEL:
 				item_packet.payload.channel.action = (ChannelAction)action;
 				item_packet.payload.channel.status_code = RESP_OK;
 				if (item_ids != NULL) {
@@ -165,7 +165,7 @@ int send_list_response(int client_fd, PacketType type, int action,
 				}
 				strncpy(item_packet.payload.channel.channel_name, items[i], MAX_NAME_LEN - 1);
 				break;
-			case SOCIAL:
+			case PACKET_SOCIAL:
 				item_packet.payload.social.action = (SocialAction)action;
 				item_packet.payload.social.status_code = RESP_OK;
 				if (item_ids != NULL) {
@@ -196,13 +196,13 @@ int send_list_end_response(int client_fd, PacketType type) {
 	end_packet.list_frame = LIST_FRAME_END;
 
 	switch (type) {
-		case SERVER:
+		case PACKET_SERVER:
 			end_packet.payload.server.status_code = RESP_DONE;
 			break;
-		case CHANNEL:
+		case PACKET_CHANNEL:
 			end_packet.payload.channel.status_code = RESP_DONE;
 			break;
-		case SOCIAL:
+		case PACKET_SOCIAL:
 			end_packet.payload.social.status_code = RESP_DONE;
 			break;
 		default:

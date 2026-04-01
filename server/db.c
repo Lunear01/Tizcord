@@ -212,7 +212,7 @@ int db_delete_message(DbContext* db, int64_t message_id) {
     return 0;
 }
 
-/* -------------- SERVER OPERATIONS ------------------ */
+/* -------------- PACKET_SERVER OPERATIONS ------------------ */
 int db_get_server(DbContext* db, const char* name, int64_t* server_id_out){
     const char* sql_select = "SELECT id FROM servers WHERE name = ?;";
     sqlite3_stmt* stmt_select;
@@ -504,7 +504,7 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id) {
     return sqlite3_changes(db->conn) > 0 ? 0 : -1;
 }
 
-/* -------------- SOCIAL OPERATIONS ------------------ */
+/* -------------- PACKET_SOCIAL OPERATIONS ------------------ */
 int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id) {
     const char* sql = "INSERT INTO friends (user_id, friend_id, is_accepted) VALUES (?, ?, 0);";
     sqlite3_stmt* stmt;

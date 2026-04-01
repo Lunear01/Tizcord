@@ -102,7 +102,7 @@ static void collect_member_list_item(int64_t user_id, const char *username,
 void handle_server_packet(ServerContext *ctx, ClientNode *client,
                           TizcordPacket *packet) {
     if (ctx == NULL || client == NULL || packet == NULL) {
-        fprintf(stderr, "[Server] Invalid SERVER packet context\n");
+        fprintf(stderr, "[Server] Invalid PACKET_SERVER packet context\n");
         return;
     }
 
@@ -143,9 +143,9 @@ void handle_server_packet(ServerContext *ctx, ClientNode *client,
         kick_server_member(ctx, client, server_id, target_user_id);
         break;
     default:
-        printf("[Server] Unknown SERVER action %d received!\n",
+        printf("[Server] Unknown PACKET_SERVER action %d received!\n",
                packet->payload.server.action);
-        send_action_response(client->socket_fd, SERVER,
+        send_action_response(client->socket_fd, PACKET_SERVER,
                              packet->payload.server.action, RESP_ERR_INVALID,
                              NULL);
         break;
@@ -157,7 +157,7 @@ void join_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {
         fprintf(stderr, "[Server] Invalid join request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_JOIN,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_JOIN,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
@@ -166,7 +166,7 @@ void join_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (!client->is_authenticated) {
         fprintf(stderr,
                 "[Server] Unauthenticated client attempted SERVER_JOIN\n");
-        send_action_response(client->socket_fd, SERVER, SERVER_JOIN,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_JOIN,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
@@ -174,7 +174,7 @@ void join_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (db_join_server(ctx->db, server_id, client->id, false) == 0) {
         printf("[Server] User id=%lld joined server id=%lld\n", (long long)client->id,
                (long long)server_id);
-        if (send_action_response(client->socket_fd, SERVER, SERVER_JOIN,
+        if (send_action_response(client->socket_fd, PACKET_SERVER, SERVER_JOIN,
                                  RESP_OK, NULL) != 0) {
             fprintf(stderr,
                     "[Server] Failed to send join response to client id=%lld\n",
@@ -182,7 +182,7 @@ void join_tizcord_server(ServerContext *ctx, ClientNode *client,
         }
     } else {
         fprintf(stderr, "[Server] Failed to join server id=%lld\n", (long long)server_id);
-        send_action_response(client->socket_fd, SERVER, SERVER_JOIN,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_JOIN,
                              RESP_ERR_DB, NULL);
     }
 }
@@ -192,7 +192,7 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {
         fprintf(stderr, "[Server] Invalid leave request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_LEAVE,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LEAVE,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
@@ -201,7 +201,7 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (!client->is_authenticated) {
         fprintf(stderr,
                 "[Server] Unauthenticated client attempted SERVER_LEAVE\n");
-        send_action_response(client->socket_fd, SERVER, SERVER_LEAVE,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LEAVE,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
@@ -209,7 +209,7 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (db_leave_server(ctx->db, server_id, client->id) == 0) {
         printf("[Server] User id=%lld left server id=%lld\n", (long long)client->id,
                (long long)server_id);
-        if (send_action_response(client->socket_fd, SERVER, SERVER_LEAVE,
+        if (send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LEAVE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
                 stderr,
@@ -218,7 +218,7 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
         }
     } else {
         fprintf(stderr, "[Server] Failed to leave server id=%lld\n", (long long)server_id);
-        send_action_response(client->socket_fd, SERVER, SERVER_LEAVE,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LEAVE,
                              RESP_ERR_DB, NULL);
     }
 }
@@ -229,7 +229,7 @@ void create_tizcord_server(ServerContext *ctx, ClientNode *client,
         server_name == NULL || server_name[0] == '\0') {
         fprintf(stderr, "[Server] Invalid create server request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_CREATE,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_CREATE,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
@@ -238,7 +238,7 @@ void create_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (!client->is_authenticated) {
         fprintf(stderr,
                 "[Server] Unauthenticated client attempted SERVER_CREATE\n");
-        send_action_response(client->socket_fd, SERVER, SERVER_CREATE,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_CREATE,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
@@ -246,7 +246,7 @@ void create_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (db_create_server(ctx->db, server_name, client->id) == 0) {
         printf("[Server] User id=%lld created server '%s'\n", (long long)client->id,
                server_name);
-        if (send_action_response(client->socket_fd, SERVER, SERVER_CREATE,
+        if (send_action_response(client->socket_fd, PACKET_SERVER, SERVER_CREATE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
                 stderr,
@@ -255,7 +255,7 @@ void create_tizcord_server(ServerContext *ctx, ClientNode *client,
         }
     } else {
         fprintf(stderr, "[Server] Failed to create server '%s'\n", server_name);
-        send_action_response(client->socket_fd, SERVER, SERVER_CREATE,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_CREATE,
                              RESP_ERR_DB, NULL);
     }
 }
@@ -271,7 +271,7 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {
         fprintf(stderr, "[Server] Invalid delete server request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_DELETE,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_DELETE,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
@@ -280,7 +280,7 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (!client->is_authenticated) {
         fprintf(stderr,
                 "[Server] Unauthenticated client attempted SERVER_DELETE\n");
-        send_action_response(client->socket_fd, SERVER, SERVER_DELETE,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_DELETE,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
@@ -295,7 +295,7 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (db_delete_server(ctx->db, server_id, client->id) == 0) {
         printf("[Server] User id=%lld deleted server id=%lld\n", (long long)client->id,
                (long long)server_id);
-        if (send_action_response(client->socket_fd, SERVER, SERVER_DELETE,
+        if (send_action_response(client->socket_fd, PACKET_SERVER, SERVER_DELETE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
                 stderr,
@@ -305,7 +305,7 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
     } else {
         fprintf(stderr, "[Server] Failed to delete server id=%lld\n",
                 (long long)server_id);
-        send_action_response(client->socket_fd, SERVER, SERVER_DELETE,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_DELETE,
                              RESP_ERR_DB, NULL);
     }
 }
@@ -316,7 +316,7 @@ void edit_tizcord_server(ServerContext *ctx, ClientNode *client,
         new_name == NULL || new_name[0] == '\0') {
         fprintf(stderr, "[Server] Invalid edit server request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_EDIT,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
@@ -325,7 +325,7 @@ void edit_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (!client->is_authenticated) {
         fprintf(stderr,
                 "[Server] Unauthenticated client attempted SERVER_EDIT\n");
-        send_action_response(client->socket_fd, SERVER, SERVER_EDIT,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
@@ -333,11 +333,11 @@ void edit_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (db_edit_server(ctx->db, server_id, client->id, new_name) == 0) {
         printf("[Server] User id=%lld edited server id=%lld\n", (long long)client->id,
                (long long)server_id);
-        send_action_response(client->socket_fd, SERVER, SERVER_EDIT, RESP_OK,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT, RESP_OK,
                              NULL);
     } else {
         fprintf(stderr, "[Server] Failed to edit server id=%lld\n", (long long)server_id);
-        send_action_response(client->socket_fd, SERVER, SERVER_EDIT,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT,
                              RESP_ERR_DB, NULL);
     }
 }
@@ -348,27 +348,27 @@ void list_tizcord_servers(ServerContext *ctx, ClientNode *client) {
     if (ctx == NULL || ctx->db == NULL || client == NULL) {
         fprintf(stderr, "[Server] Invalid list servers request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_LIST,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
     }
 
     if (!client->is_authenticated) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
 
     if (db_list_servers(ctx->db, collect_server_list_item, &acc) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST,
                              RESP_ERR_DB, NULL);
         return;
     }
 
-    if (send_list_response(client->socket_fd, SERVER, SERVER_LIST,
+    if (send_list_response(client->socket_fd, PACKET_SERVER, SERVER_LIST,
                            acc.name_ptrs, acc.ids, acc.member_counts, acc.count) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST,
                              RESP_ERR_INTERNAL, NULL);
     }
 }
@@ -379,28 +379,28 @@ void list_tizcord_channels(ServerContext *ctx, ClientNode *client, int64_t serve
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {
         fprintf(stderr, "[Server] Invalid list channels request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER,
+            send_action_response(client->socket_fd, PACKET_SERVER,
                                  SERVER_LIST_CHANNELS, RESP_ERR_INVALID, NULL);
         }
         return;
     }
 
     if (!client->is_authenticated) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_CHANNELS,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_CHANNELS,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
 
     if (db_list_server_channels(ctx->db, server_id, collect_channel_list_item,
                                 &acc) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_CHANNELS,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_CHANNELS,
                              RESP_ERR_DB, NULL);
         return;
     }
 
-    if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_CHANNELS,
+    if (send_list_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_CHANNELS,
                            acc.name_ptrs, acc.ids, NULL, acc.count) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_CHANNELS,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_CHANNELS,
                              RESP_ERR_INTERNAL, NULL);
     }
 }
@@ -411,28 +411,28 @@ void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {
         fprintf(stderr, "[Server] Invalid list members request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
     }
 
     if (!client->is_authenticated) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
 
     if (db_list_server_members(ctx->db, server_id, collect_member_list_item,
                                &acc) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_DB, NULL);
         return;
     }
 
-    if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
-                           acc.name_ptrs, acc.ids, acc.status_codes, acc.count) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_MEMBERS,
+    if (send_list_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
+                           acc.name_ptrs, acc.ids, NULL, acc.count) != 0) {
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_INTERNAL, NULL);
     }
 }
@@ -443,28 +443,28 @@ void list_joined_servers(ServerContext *ctx, ClientNode *client) {
     if (ctx == NULL || ctx->db == NULL || client == NULL) {
         fprintf(stderr, "[Server] Invalid list joined servers request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_JOINED,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
     }
 
     if (!client->is_authenticated) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_JOINED,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
 
     if (db_list_joined_servers(ctx->db, client->id, collect_server_list_item,
                                &acc) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_JOINED,
                              RESP_ERR_DB, NULL);
         return;
     }
 
-    if (send_list_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
+    if (send_list_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_JOINED,
                            acc.name_ptrs, acc.ids, acc.member_counts, acc.count) != 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_LIST_JOINED,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_JOINED,
                              RESP_ERR_INTERNAL, NULL);
     }
 }
@@ -477,14 +477,14 @@ void kick_server_member(ServerContext *ctx, ClientNode *client,
         target_user_id <= 0) {
         fprintf(stderr, "[Server] Invalid kick member request\n");
         if (client != NULL) {
-            send_action_response(client->socket_fd, SERVER, SERVER_KICK_MEMBER,
+            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_KICK_MEMBER,
                                  RESP_ERR_INVALID, NULL);
         }
         return;
     }
 
     if (!client->is_authenticated) {
-        send_action_response(client->socket_fd, SERVER, SERVER_KICK_MEMBER,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_KICK_MEMBER,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
@@ -492,16 +492,16 @@ void kick_server_member(ServerContext *ctx, ClientNode *client,
     if (db_user_is_server_admin(ctx->db, server_id, client->id, &is_admin) !=
             0 ||
         !is_admin) {
-        send_action_response(client->socket_fd, SERVER, SERVER_KICK_MEMBER,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_KICK_MEMBER,
                              RESP_ERR_UNAUTHORIZED, NULL);
         return;
     }
 
     if (db_kick_server_member(ctx->db, server_id, target_user_id) == 0) {
-        send_action_response(client->socket_fd, SERVER, SERVER_KICK_MEMBER,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_KICK_MEMBER,
                              RESP_OK, NULL);
     } else {
-        send_action_response(client->socket_fd, SERVER, SERVER_KICK_MEMBER,
+        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_KICK_MEMBER,
                              RESP_ERR_DB, NULL);
     }
 }
