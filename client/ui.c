@@ -65,6 +65,7 @@ typedef struct
     char icon[4]; // emoji-like 2-char
     int member_count;
     char member_names[MAX_USERS][MAX_NAME_LEN];
+    int member_is_admin[MAX_USERS];
     UIChannel channels[UI_MAX_CHANNELS];
     int channel_count;
 } UIServer;
@@ -101,6 +102,7 @@ int dm_input_len = 0;
 Screen previous_screen = SCREEN_LOGIN;
 char cmd_input[MAX_MSG_LEN] = {0};
 int cmd_input_len = 0;
+char command_status_msg[128] = {0};
 
 // ─── Seed Data ───────────────────────────────────────────────────────────────
 
@@ -754,9 +756,20 @@ void draw_chat(int rows, int cols)
 
     // List the members
     for (int i = 0; i < sv->member_count && i < MAX_USERS; i++) {
-        attron(COLOR_PAIR(5) | A_BOLD);
-        mvprintw(4 + (i * 2), right_x + 2, "• %s", sv->member_names[i]);
-        attroff(COLOR_PAIR(5) | A_BOLD);
+        int row = 4 + (i * 2);
+        if (sv->member_is_admin[i]) {
+            attron(COLOR_PAIR(8) | A_BOLD); 
+            mvprintw(row, right_x + 2, "Admin: ");
+            attroff(COLOR_PAIR(8) | A_BOLD);
+            
+            attron(COLOR_PAIR(5) | A_BOLD);
+            mvprintw(row, right_x + 9, "%s", sv->member_names[i]);
+            attroff(COLOR_PAIR(5) | A_BOLD);
+        } else {
+            attron(COLOR_PAIR(5) | A_BOLD);
+            mvprintw(row, right_x + 2, "• %s", sv->member_names[i]);
+            attroff(COLOR_PAIR(5) | A_BOLD);
+        }
     }
     attroff(COLOR_PAIR(3));
 
@@ -835,7 +848,7 @@ void draw_chat(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 1, " TAB: Channels  ENTER: Send  CLICK: Channel  q: Quit /: Command");
+    mvprintw(rows - 1, 1, " TAB: Channels  ENTER: Send  ESC: Leave Server   CLICK: Channel  q: Quit  /: Command");
     attroff(COLOR_PAIR(3));
 
     /* Cursor */
@@ -875,44 +888,14 @@ void handle_chat_input(int ch)
         if (chat_input_len > 0)
             chat_input[--chat_input_len] = '\0';
         break;
-
-    case KEY_MOUSE:
-    {
-        MEVENT me;
-        if (getmouse(&me) == OK && me.bstate & BUTTON1_CLICKED)
-        {
-            if (me.x < SIDEBAR_W)
-            {
-                for (int i = 0; i < sv->channel_count; i++)
-                {
-                    if (me.y == 4 + i * 2)
-                    {
-                        active_channel = i;
-                        chat_input[0] = '\0';
-                        chat_input_len = 0;
-                        break;
-                    }
-                }
-                int rows;
-                getmaxyx(stdscr, rows, (int){0});
-                if (me.y == rows - 3)
-                {
-                    users[current_user].server_id = -1;
-                    active_server = -1;
-                    server_cursor = 0;
-                    current_screen = SCREEN_SERVERS;
-                }
-                if (me.y == rows - 2)
-                {
-                    users[current_user].server_id = -1;
-                    current_user = -1;
-                    active_server = -1;
-                    current_screen = SCREEN_LOGIN;
-                }
-            }
-        }
+    case 27: // ESC key
+        active_server = -1;
+        users[current_user].server_id = -1;
+        chat_input[0] = '\0';
+        chat_input_len = 0;
+        current_screen = SCREEN_SERVERS;
         break;
-    }
+    
 
     default:
         if (ch == '/' && chat_input_len == 0) {
@@ -1028,7 +1011,29 @@ void ui_update_server_state(TizcordPacket *packet) {
     // Refresh the list when a server is successfully created
     if (packet->payload.server.action == SERVER_CREATE) {
         if (packet->payload.server.status_code == 0) { 
-            list_joined_servers_request(); 
+            list_all_servers_request(); 
+        }
+        return;
+    }
+
+    if (packet->payload.server.action == SERVER_DELETE) {
+        if (packet->payload.server.status_code == 0) {
+            // SUCCESS! Close the window.
+            command_status_msg[0] = '\0';
+            if (current_screen == SCREEN_COMMAND) {
+                cmd_input[0] = '\0';
+                cmd_input_len = 0;
+                current_screen = previous_screen;
+            }
+            
+            list_all_servers_request();
+            if (active_server >= 0 && servers[active_server].id == packet->payload.server.server_id) {
+                active_server = -1;
+                users[current_user].server_id = -1;
+                current_screen = SCREEN_SERVERS;
+            }
+        } else {
+            strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
         }
         return;
     }
@@ -1086,6 +1091,8 @@ void ui_update_server_state(TizcordPacket *packet) {
             if (packet->list_total > 0 && sv->member_count < MAX_USERS) {
                 int m_idx = sv->member_count++;
                 strncpy(sv->member_names[m_idx], packet->payload.server.server_name, MAX_NAME_LEN - 1);
+
+                sv->member_is_admin[m_idx] = packet->payload.server.member_count;
             }
         }
     }
@@ -1119,6 +1126,12 @@ void draw_command(int rows, int cols)
     mvprintw(by + 1, bx + 2, "> %s", cmd_input);
     attroff(COLOR_PAIR(1));
 
+    if (command_status_msg[0] != '\0') {
+        attron(COLOR_PAIR(8) | A_BOLD);
+        mvprintw(by + bh, bx, "%s", command_status_msg);
+        attroff(COLOR_PAIR(8) | A_BOLD);
+    }
+
     // Place the blinking cursor at the end of the input
     move(by + 1, bx + 4 + cmd_input_len);
     refresh();
@@ -1135,6 +1148,9 @@ void handle_command_input(int ch)
 
         case '\n':
         case KEY_ENTER:
+        {
+            int should_close = 1; // Default to closing the window
+            
             if (strncmp(cmd_input, "/friend ", 8) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
                 strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
@@ -1172,27 +1188,84 @@ void handle_command_input(int ch)
                     create_server(server_name);
                 }
             } else if (strncmp(cmd_input, "/createchannel ", 15) == 0) {
-                // Ensure we are currently viewing a valid server
-                if (active_server >= 0 && active_server < server_count) {
+                should_close = 0; // WAIT FOR SERVER RESPONSE
+
+                if (previous_screen != SCREEN_CHAT) {
+                    strcpy(command_status_msg, "Error: You must enter the server to create channels.");
+                } else if (active_server >= 0 && active_server < server_count) {
                     char channel_name[MAX_NAME_LEN] = {0};
                     strncpy(channel_name, cmd_input + 15, MAX_NAME_LEN - 1);
                     
-                    // Strip trailing spaces
                     while (strlen(channel_name) > 0 && channel_name[strlen(channel_name) - 1] == ' ') {
                         channel_name[strlen(channel_name) - 1] = '\0';
                     }
                     
                     if (strlen(channel_name) > 0) {
                         create_channel(servers[active_server].id, channel_name);
+                        strcpy(command_status_msg, "Sending create request...");
+                    } else {
+                        strcpy(command_status_msg, "Error: Channel name cannot be empty.");
                     }
                 }
+            } else if (strncmp(cmd_input, "/deleteserver ", 14) == 0) {
+                should_close = 0; // WAIT FOR SERVER RESPONSE
+                char *target_name = cmd_input + 14; 
+                int64_t target_id = -1;
+                
+                for (int i = 0; i < server_count; i++) {
+                    if (strcmp(servers[i].name, target_name) == 0) {
+                        target_id = servers[i].id;
+                        break;
+                    }
+                }
+                
+                if (target_id != -1) {
+                    delete_server(target_id);
+                    strcpy(command_status_msg, "Sending delete request...");
+                } else {
+                    strcpy(command_status_msg, "Error: Server not found in your list.");
+                }
+
+            } else if (strncmp(cmd_input, "/deletechannel ", 15) == 0) {
+                should_close = 0;
+                if (previous_screen != SCREEN_CHAT) {
+                    strcpy(command_status_msg, "Error: You must enter the server to delete channels.");
+                } else if (active_server >= 0 && active_server < server_count) {
+                    char *target_name = cmd_input + 15;
+                    int64_t target_id = -1;
+                    UIServer *sv = &servers[active_server];
+                    
+                    for (int i = 0; i < sv->channel_count; i++) {
+                        if (strcmp(sv->channels[i].name, target_name) == 0) {
+                            target_id = sv->channels[i].id;
+                            break;
+                        }
+                    }
+                    
+                    if (target_id != -1) {
+                        delete_channel(target_id); 
+                        strcpy(command_status_msg, "Sending delete request...");
+                    } else {
+                        strcpy(command_status_msg, "Error: Channel not found in this server.");
+                    }
+                } else {
+                    strcpy(command_status_msg, "Error: You must join a server to delete its channels.");
+                }
+            } else {
+                // Catch typos!
+                should_close = 0;
+                strcpy(command_status_msg, "Error: Unknown command.");
             }
 
-            // Clear the input and return to the previous screen
-            cmd_input[0] = '\0';
-            cmd_input_len = 0;
-            current_screen = previous_screen;
+            // ONLY close if it was a fast synchronous command
+            if (should_close) {
+                cmd_input[0] = '\0';
+                cmd_input_len = 0;
+                current_screen = previous_screen;
+                command_status_msg[0] = '\0';
+            }
             break;
+        }
 
         case KEY_BACKSPACE:
         case 127:
@@ -1207,6 +1280,7 @@ void handle_command_input(int ch)
             {
                 cmd_input[cmd_input_len++] = (char)ch;
                 cmd_input[cmd_input_len] = '\0';
+                command_status_msg[0] = '\0'; // Clear errors when typing
             }
             break;
     }
@@ -1225,8 +1299,34 @@ void process_network_packet(TizcordPacket *packet) {
             } else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
                 ui_delete_channel_message(packet);
             } else if (packet->payload.channel.action == CHANNEL_CREATE) {
-                if (packet->payload.channel.status_code == 0 && active_server >= 0) {
-                    request_server_channels(servers[active_server].id);
+                if (packet->payload.channel.status_code == 0) {
+                    // SUCCESS! Close the window.
+                    command_status_msg[0] = '\0';
+                    if (current_screen == SCREEN_COMMAND) {
+                        cmd_input[0] = '\0';
+                        cmd_input_len = 0;
+                        current_screen = previous_screen;
+                    }
+                    if (active_server >= 0) {
+                        request_server_channels(servers[active_server].id);
+                    }
+                } else {
+                    strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
+                }
+            } else if (packet->payload.channel.action == CHANNEL_DELETE) {
+                if (packet->payload.channel.status_code == 0) {
+                    command_status_msg[0] = '\0';
+                    if (current_screen == SCREEN_COMMAND) {
+                        cmd_input[0] = '\0';
+                        cmd_input_len = 0;
+                        current_screen = previous_screen;
+                    }
+                    if (active_server >= 0) {
+                        active_channel = 0; 
+                        request_server_channels(servers[active_server].id);
+                    }
+                } else {
+                    strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
                 }
             }
             break;
@@ -1576,7 +1676,7 @@ void start_ui(void)
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
-    mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+    mousemask(0, NULL);
     curs_set(1);
     init_colors();
 
@@ -1598,17 +1698,16 @@ void start_ui(void)
         case SCREEN_DMS: draw_dms(rows, cols); break;
     }
 
-    // --- SINGLE THREADED EVENT LOOP ---
     while (1)
     {
         fd_set read_fds;
         FD_ZERO(&read_fds);
         
-        // 1. Always listen to Standard Input (Keyboard/Mouse)
+        // Always listen to Standard Input
         FD_SET(STDIN_FILENO, &read_fds);
         int max_fd = STDIN_FILENO;
 
-        // 2. Listen to the network socket if connected
+        // Listen to the network socket if connected
         if (client_socket != -1) {
             FD_SET(client_socket, &read_fds);
             if (client_socket > max_fd) {
@@ -1621,9 +1720,8 @@ void start_ui(void)
             continue; // Handle interrupt signals cleanly
         }
 
-        int needs_redraw = 0; // FIXED scoping issue
+        int needs_redraw = 0;
 
-        // --- CHECK NETWORK ---
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
             TizcordPacket packet;
             int bytes_read = read(client_socket, &packet, sizeof(TizcordPacket));
@@ -1638,7 +1736,6 @@ void start_ui(void)
             }
         }
 
-        // --- CHECK USER INPUT ---
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             // Drain all available keys since getch() is non-blocking
             while ((ch = getch()) != ERR) {
@@ -1663,7 +1760,6 @@ void start_ui(void)
             }
         }
 
-        // --- BATCH REDRAW ---
         if (needs_redraw) {
             getmaxyx(stdscr, rows, cols);
             switch (current_screen)
