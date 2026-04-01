@@ -88,6 +88,15 @@ void leave_server(int server_id) {
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
+void kick_server_member(int64_t server_id, int64_t target_user_id) {
+    if (client_socket < 0) return;
+    TizcordPacket packet = create_base_packet(PACKET_SERVER);
+    packet.payload.server.action = SERVER_KICK_MEMBER;
+    packet.payload.server.server_id = server_id;
+    packet.payload.server.target_user_id = target_user_id;
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
 void create_channel(int server_id, const char *channel_name) {
     if (client_socket < 0) return;
 
@@ -102,7 +111,7 @@ void create_channel(int server_id, const char *channel_name) {
 
 void delete_server(int64_t server_id) {
     if (client_socket < 0) return;
-    TizcordPacket packet = create_base_packet(SERVER);
+    TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_DELETE;
     packet.payload.server.server_id = server_id;
     write(client_socket, &packet, sizeof(TizcordPacket));

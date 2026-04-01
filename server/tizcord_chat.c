@@ -116,7 +116,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         int is_admin = 0;
         int64_t server_id = 0;
         
-        TizcordPacket reply = create_base_packet(CHANNEL);
+        TizcordPacket reply = create_base_packet(PACKET_CHANNEL);
         reply.payload.channel.action = CHANNEL_DELETE;
         reply.payload.channel.channel_id = packet->payload.channel.channel_id;
         
@@ -159,7 +159,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         int is_admin = 0;
         int64_t target_channel_id = 0;
         
-        TizcordPacket reply = create_base_packet(CHANNEL);
+        TizcordPacket reply = create_base_packet(PACKET_CHANNEL);
         reply.payload.channel.action = CHANNEL_DELETE;
         
         // Ensure the database is available and the sender is a known active client
