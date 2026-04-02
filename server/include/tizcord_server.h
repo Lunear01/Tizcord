@@ -14,3 +14,5 @@ void list_tizcord_channels(ServerContext* ctx, ClientNode *client, int64_t serve
 void list_members(ServerContext* ctx, ClientNode *client, int64_t server_id);
 void list_joined_servers(ServerContext* ctx, ClientNode *client);
 void kick_server_member(ServerContext* ctx, ClientNode *client, int64_t server_id, int64_t target_user_id);
+void notify_server_member_list(ServerContext* ctx, int64_t server_id);
+void notify_server_member_lists_for_user(ServerContext* ctx, int64_t user_id);

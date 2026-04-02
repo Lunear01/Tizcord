@@ -2,6 +2,8 @@
 #include "include/auth.h"
 #include "include/db.h"
 #include "include/server.h"
+#include "include/tizcord_social.h"
+#include "include/tizcord_server.h"
 
 #include <crypt.h>
 #include <stdio.h>
@@ -102,6 +104,8 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
                 break;
             }
         }
+
+        notify_all_user_lists(ctx);
     } else {
         printf("[Server] Failed to register user (Username likely already exists!).\n");
         reply.payload.auth.status_code = 1;
@@ -157,9 +161,57 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
                 break;
             }
         }
+
+        notify_server_member_lists_for_user(ctx, db_user_id);
+        notify_all_user_lists(ctx);
     }
     
     write(client_fd, &reply, sizeof(TizcordPacket));
+}
+
+void logout_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
+    (void)packet;
+
+    if (ctx == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < ctx->client_count; i++) {
+        ClientNode *client = &ctx->clients[i];
+
+        if (client->socket_fd != client_fd) {
+            continue;
+        }
+
+        if (!client->is_authenticated) {
+            TizcordPacket reply;
+            memset(&reply, 0, sizeof(TizcordPacket));
+            reply.type = PACKET_AUTH;
+            reply.payload.auth.action = AUTH_LOGOUT;
+            reply.payload.auth.status_code = RESP_ERR_UNAUTHORIZED;
+            write(client_fd, &reply, sizeof(TizcordPacket));
+            return;
+        }
+
+        int64_t user_id = client->id;
+        char username[MAX_NAME_LEN] = {0};
+        strncpy(username, client->username, sizeof(username) - 1);
+
+        clear_client_session(client);
+        notify_server_member_lists_for_user(ctx, user_id);
+        notify_all_user_lists(ctx);
+
+        TizcordPacket reply;
+        memset(&reply, 0, sizeof(TizcordPacket));
+        reply.type = PACKET_AUTH;
+        reply.payload.auth.action = AUTH_LOGOUT;
+        reply.payload.auth.status_code = RESP_DONE;
+        strncpy(reply.payload.auth.username, username, MAX_NAME_LEN - 1);
+
+        write(client_fd, &reply, sizeof(TizcordPacket));
+        printf("[Server] Logged out user %s on fd %d\n", username, client_fd);
+        return;
+    }
 }
 
 void handle_auth_packet(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
@@ -167,5 +219,7 @@ void handle_auth_packet(ServerContext *ctx, int client_fd, TizcordPacket *packet
         register_account(ctx, client_fd, packet);
     } else if (packet->payload.auth.action == AUTH_LOGIN) {
         login_account(ctx, client_fd, packet);
+    } else if (packet->payload.auth.action == AUTH_LOGOUT) {
+        logout_account(ctx, client_fd, packet);
     }
 }

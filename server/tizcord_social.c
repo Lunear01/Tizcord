@@ -149,6 +149,41 @@ static void notify_friend_list_update(ServerContext *ctx, int64_t target_user_id
     }
 }
 
+void notify_all_user_lists(ServerContext *ctx) {
+    if (ctx == NULL || ctx->db == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < ctx->client_count; i++) {
+        ClientNode *client = &ctx->clients[i];
+        if (client->socket_fd <= 0 || !client->is_authenticated) {
+            continue;
+        }
+
+        UserListContext ulc = {
+            .srv_ctx = ctx,
+            .client_fd = client->socket_fd,
+            .current_index = 0,
+            .list_id = (int32_t)client->id
+        };
+
+        TizcordPacket start_pkt = create_base_packet(PACKET_SOCIAL);
+        start_pkt.payload.social.action = SOCIAL_LIST_USERS;
+        start_pkt.list_id = ulc.list_id;
+        start_pkt.list_frame = LIST_FRAME_START;
+        write(client->socket_fd, &start_pkt, sizeof(TizcordPacket));
+
+        db_list_all_users(ctx->db, user_list_cb, &ulc);
+
+        TizcordPacket end_pkt = create_base_packet(PACKET_SOCIAL);
+        end_pkt.payload.social.action = SOCIAL_LIST_USERS;
+        end_pkt.list_id = ulc.list_id;
+        end_pkt.list_total = ulc.current_index;
+        end_pkt.list_frame = LIST_FRAME_END;
+        write(client->socket_fd, &end_pkt, sizeof(TizcordPacket));
+    }
+}
+
 void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet) {
     if (!ctx || !client || !packet) return;
 

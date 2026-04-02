@@ -68,6 +68,7 @@ typedef struct
     int member_count;
     char member_names[MAX_USERS][MAX_NAME_LEN];
     int member_is_admin[MAX_USERS];
+    int member_is_online[MAX_USERS];
     int64_t member_ids[MAX_USERS];
     UIChannel channels[UI_MAX_CHANNELS];
     int channel_count;
@@ -655,10 +656,7 @@ void handle_server_input(int ch)
         request_server_members(servers[active_server].id);
         break;
     case 27: /* ESC = logout */
-        current_user = -1;
-        active_server = -1;
-        server_cursor = 0;
-        current_screen = SCREEN_LOGIN;
+        send_logout();
         break;
     case KEY_MOUSE:
     {
@@ -699,6 +697,8 @@ int chat_input_len = 0;
 /* Width of the sidebar panel */
 #define SIDEBAR_W 20
 #define RIGHT_SIDEBAR_W 20
+#define MEMBER_FLAG_ADMIN 1
+#define MEMBER_FLAG_ONLINE 2
 
 void draw_chat(int rows, int cols)
 {
@@ -769,27 +769,75 @@ void draw_chat(int rows, int cols)
     for (int r = 0; r < rows - 1; r++)
         mvhline(r, right_x, ' ', RIGHT_SIDEBAR_W);
     
-    // Header
+    int online_count = 0;
+    for (int i = 0; i < sv->member_count && i < MAX_USERS; i++) {
+        if (sv->member_is_online[i]) {
+            online_count++;
+        }
+    }
+    int offline_count = sv->member_count - online_count;
+    if (offline_count < 0) {
+        offline_count = 0;
+    }
+
     attron(COLOR_PAIR(4));
-    mvprintw(2, right_x + 2, "MEMBERS - %d", sv->member_count);
+    mvprintw(2, right_x + 2, "MEMBERS (%d)", sv->member_count);
     attroff(COLOR_PAIR(4));
 
-    // List the members
-    for (int i = 0; i < sv->member_count && i < MAX_USERS; i++) {
-        int row = 4 + (i * 2);
-        if (sv->member_is_admin[i]) {
-            attron(COLOR_PAIR(8) | A_BOLD); 
-            mvprintw(row, right_x + 2, "Admin: ");
-            attroff(COLOR_PAIR(8) | A_BOLD);
-            
-            attron(COLOR_PAIR(5) | A_BOLD);
-            mvprintw(row, right_x + 9, "%s", sv->member_names[i]);
-            attroff(COLOR_PAIR(5) | A_BOLD);
-        } else {
-            attron(COLOR_PAIR(5) | A_BOLD);
-            mvprintw(row, right_x + 2, "• %s", sv->member_names[i]);
-            attroff(COLOR_PAIR(5) | A_BOLD);
+    int row = 4;
+
+    attron(COLOR_PAIR(4));
+    mvprintw(row++, right_x + 2, "ONLINE (%d)", online_count);
+    attroff(COLOR_PAIR(4));
+    row++;
+
+    for (int i = 0; i < sv->member_count && i < MAX_USERS && row < rows - 2; i++) {
+        if (!sv->member_is_online[i]) {
+            continue;
         }
+
+        if (sv->member_is_admin[i]) {
+            attron(COLOR_PAIR(8) | A_BOLD);
+            mvprintw(row, right_x + 2, "Admin:");
+            attroff(COLOR_PAIR(8) | A_BOLD);
+        }
+
+        attron(COLOR_PAIR(5));
+        mvprintw(row++, right_x + (sv->member_is_admin[i] ? 9 : 2),
+                 "%.*s",
+                 RIGHT_SIDEBAR_W - (sv->member_is_admin[i] ? 11 : 4),
+                 sv->member_names[i]);
+        attroff(COLOR_PAIR(5));
+    }
+
+    if (row < rows - 2) {
+        row++;
+    }
+
+    if (row < rows - 1) {
+        attron(COLOR_PAIR(4));
+        mvprintw(row++, right_x + 2, "OFFLINE (%d)", offline_count);
+        attroff(COLOR_PAIR(4));
+        row++;
+    }
+
+    for (int i = 0; i < sv->member_count && i < MAX_USERS && row < rows - 2; i++) {
+        if (sv->member_is_online[i]) {
+            continue;
+        }
+
+        if (sv->member_is_admin[i]) {
+            attron(COLOR_PAIR(8) | A_BOLD);
+            mvprintw(row, right_x + 2, "Admin:");
+            attroff(COLOR_PAIR(8) | A_BOLD);
+        }
+
+        attron(COLOR_PAIR(4));
+        mvprintw(row++, right_x + (sv->member_is_admin[i] ? 9 : 2),
+                 "%.*s",
+                 RIGHT_SIDEBAR_W - (sv->member_is_admin[i] ? 11 : 4),
+                 sv->member_names[i]);
+        attroff(COLOR_PAIR(4));
     }
     attroff(COLOR_PAIR(3));
 
@@ -909,11 +957,15 @@ void handle_chat_input(int ch)
             chat_input[--chat_input_len] = '\0';
         break;
     case 27: // ESC key
-        active_server = -1;
-        users[current_user].server_id = -1;
         chat_input[0] = '\0';
         chat_input_len = 0;
-        current_screen = SCREEN_SERVERS;
+        if (active_server >= 0 && active_server < server_count) {
+            leave_server(servers[active_server].id);
+        } else {
+            active_server = -1;
+            users[current_user].server_id = -1;
+            current_screen = SCREEN_SERVERS;
+        }
         break;
     
 
@@ -986,7 +1038,11 @@ void ui_handle_auth_response(TizcordPacket *packet) {
         auth.password[0] = '\0';
         auth.field = 0;
         auth.success[0] = '\0';
-        strcpy(auth.error, "Signed out: logged in elsewhere");
+        if (packet->payload.auth.status_code == RESP_DONE) {
+            strcpy(auth.error, "Signed out.");
+        } else {
+            strcpy(auth.error, "Signed out: logged in elsewhere");
+        }
     }
     
 }
@@ -1048,6 +1104,18 @@ void ui_update_server_state(TizcordPacket *packet) {
     if (packet->payload.server.action == SERVER_CREATE) {
         if (packet->payload.server.status_code == 0) { 
             list_all_servers_request(); 
+        }
+        return;
+    }
+
+    if (packet->payload.server.action == SERVER_LEAVE) {
+        if (packet->payload.server.status_code == 0) {
+            command_status_msg[0] = '\0';
+            active_server = -1;
+            active_channel = 0;
+            users[current_user].server_id = -1;
+            current_screen = SCREEN_SERVERS;
+            list_all_servers_request();
         }
         return;
     }
@@ -1128,7 +1196,9 @@ void ui_update_server_state(TizcordPacket *packet) {
                 int m_idx = sv->member_count++;
                 
                 strncpy(sv->member_names[m_idx], packet->payload.server.server_name, MAX_NAME_LEN - 1);
-                sv->member_is_admin[m_idx] = packet->payload.server.member_count; 
+                sv->member_names[m_idx][MAX_NAME_LEN - 1] = '\0';
+                sv->member_is_admin[m_idx] = (packet->payload.server.member_count & MEMBER_FLAG_ADMIN) != 0;
+                sv->member_is_online[m_idx] = (packet->payload.server.member_count & MEMBER_FLAG_ONLINE) != 0;
 
                 sv->member_ids[m_idx] = packet->payload.server.server_id;
             }
@@ -1712,9 +1782,7 @@ void handle_friends_input(int ch) {
             if (friend_cursor < friend_count - 1) friend_cursor++;
             break;
         case 27:
-            current_user = -1;
-            active_server = -1;
-            current_screen = SCREEN_LOGIN;
+            send_logout();
             break;
         case '\\':
             current_screen = SCREEN_USERS;
@@ -1817,9 +1885,7 @@ void handle_users_input(int ch) {
             if (user_list_cursor < all_user_count - 1) user_list_cursor++;
             break;
         case 27:
-            current_user = -1;
-            active_server = -1;
-            current_screen = SCREEN_LOGIN;
+            send_logout();
             break;
     }
 }
