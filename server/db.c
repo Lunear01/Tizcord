@@ -208,10 +208,10 @@ int db_list_direct_messages(DbContext* db, int64_t sender_id, int64_t receiver_i
     if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
         return db_err(db, "Failed to prepare direct messages select");
     }
-    sqlite3_bind(stmt, 1, sender_id);
-    sqlite3_bind(stmt, 2, receiver_id);
-    sqlite3_bind(stmt, 3, receiver_id);
-    sqlite3_bind(stmt, 4, sender_id);
+    sqlite3_bind_int64(stmt, 1, sender_id);
+    sqlite3_bind_int64(stmt, 2, receiver_id);
+    sqlite3_bind_int64(stmt, 3, receiver_id);
+    sqlite3_bind_int64(stmt, 4, sender_id);
 
     int rc;
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
