@@ -164,9 +164,25 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
                 send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REQUEST, RESP_ERR_NOT_FOUND, "User not found.");
                 return;
             }
+            if (friend_id == client->id) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REQUEST, RESP_ERR_INVALID, "You cannot send a friend request to yourself.");
+                return;
+            }
 
-            if (db_send_friend_request(ctx->db, client->id, friend_id) != 0) {
+            int rc = db_send_friend_request(ctx->db, client->id, friend_id);
+            if (rc == -2) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REQUEST, RESP_ERR_CONFLICT, "You are already friends!");
+                return;
+            }
+            if (rc < 0) {
                 send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REQUEST, RESP_ERR_DB, "Friend request failed.");
+                return;
+            }
+
+            if (rc == 1) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REQUEST, RESP_OK, "Incoming request found. Friendship accepted!");
+                notify_friend_list_update(ctx, client->id);
+                notify_friend_list_update(ctx, friend_id);
                 return;
             }
 

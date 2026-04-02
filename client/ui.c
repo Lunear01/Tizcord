@@ -1140,7 +1140,7 @@ void draw_command(int rows, int cols)
             "/createchannel [channel_name]",
             "/deletechannel [channel_name]",
             "/kick [username]",
-            "/set_status [status]",
+            "/setstatus [status]",
             "/help",
             NULL
         };
@@ -1375,13 +1375,11 @@ void handle_command_input(int ch)
                 else {
                     strcpy(command_status_msg, "Error: You must join a server to delete its channels.");
                 }
-            } 
-            
-            else if (strcmp(cmd_input, "/set_status") == 0 ||
-                       strncmp(cmd_input, "/set_status ", 12) == 0) {
+            } else if (strcmp(cmd_input, "/setstatus") == 0 ||
+                       strncmp(cmd_input, "/setstatus ", 11) == 0) {
                 should_close = 0;
 
-                const char *raw_status = cmd_input + 11;
+                const char *raw_status = cmd_input + 10;
                 while (*raw_status == ' ') {
                     raw_status++;
                 }
@@ -1392,10 +1390,8 @@ void handle_command_input(int ch)
                 }
 
                 if (status_len == 0) {
-                    strcpy(command_status_msg, "Error: Status cannot be empty. Use /set_status <1-64 characters>.");
-                } 
-                
-                else if (status_len > PROFILE_STATUS_LEN) {
+                    strcpy(command_status_msg, "Error: Status cannot be empty. Use /setstatus <1-64 characters>.");
+                } else if (status_len > PROFILE_STATUS_LEN) {
                     snprintf(command_status_msg, sizeof(command_status_msg),
                              "Error: Status is %zu characters. Maximum is %d.",
                              status_len, PROFILE_STATUS_LEN);
