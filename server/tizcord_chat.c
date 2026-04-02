@@ -112,6 +112,38 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
             reply.payload.channel.status_code = 401; // Unauthorized
         }
         write(sender_fd, &reply, sizeof(TizcordPacket));
+
+    }
+
+    else if (packet->payload.channel.action == CHANNEL_DELETE) {
+        int is_admin = 0;
+        int64_t server_id = 0;
+        
+        TizcordPacket reply = create_base_packet(PACKET_CHANNEL);
+        reply.payload.channel.action = CHANNEL_DELETE;
+        reply.payload.channel.channel_id = packet->payload.channel.channel_id;
+        
+        if (sender_node != NULL && ctx->db != NULL) {
+            
+            // Get the server ID this channel belongs to
+            if (db_get_channel_server_id(ctx->db, packet->payload.channel.channel_id, &server_id) == 0) {
+                
+                // ADMIN CHECK
+                if (db_user_is_server_admin(ctx->db, server_id, sender_node->id, &is_admin) == 0 && is_admin) {
+                    
+                    if (db_delete_channel(ctx->db, packet->payload.channel.channel_id) == 0) {
+                        reply.payload.channel.status_code = 0;
+                    } else {
+                        reply.payload.channel.status_code = -5;
+                    }
+                } else {
+                    reply.payload.channel.status_code = 401; // Unauthorized
+                }
+            } else {
+                reply.payload.channel.status_code = RESP_ERR_NOT_FOUND;
+            }
+        }
+        write(sender_fd, &reply, sizeof(TizcordPacket));
     }
     else if (packet->payload.channel.action == CHANNEL_HISTORY_REQUEST) {
         printf("[Chat] History request for Channel ID: %lld\n", (long long)packet->payload.channel.channel_id);
@@ -157,6 +189,7 @@ void handle_chat_packet(ServerContext *ctx, TizcordPacket *packet, int sender_fd
 void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
     if (packet->payload.dm.action == DM_MESSAGE) {
         
+        // 1. Find the sender to securely get their ID
         ClientNode *sender_node = NULL;
         for (int i = 0; i < ctx->client_count; i++) {
             if (ctx->clients[i].socket_fd == sender_fd) {
@@ -166,6 +199,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         }
         
         if (sender_node != NULL) {
+            // Stamp the authoritative sender ID onto the packet
             packet->sender_id = sender_node->id;
         }
 
@@ -173,8 +207,11 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
         
         int found = 0;
+        // 2. Find recipient by matching ID in the active client array
         for (int i = 0; i < ctx->client_count; i++) {
             if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
+                
+                // Forward the exact packet to the receiver's socket
                 write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
                 printf("[Chat] PACKET_DM delivered to ID %lld\n", (long long)packet->payload.dm.recipient_id);
                 found = 1;
@@ -187,8 +224,8 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             
             // Route an error packet back to sender_fd
             TizcordPacket error_reply;
-            memcpy(&error_reply, packet, sizeof(TizcordPacket));
-            error_reply.payload.dm.status_code = 404;
+            memcpy(&error_reply, packet, sizeof(TizcordPacket)); // Copy original details
+            error_reply.payload.dm.status_code = 404; // Standard not found code
             strcpy(error_reply.payload.dm.message, "Error: User is offline or does not exist.");
             
             write(sender_fd, &error_reply, sizeof(TizcordPacket));
