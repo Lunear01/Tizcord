@@ -14,6 +14,7 @@ typedef void (*ChannelCallback)(int64_t channel_id, const char* channel_name, vo
 typedef void (*MemberCallback)(int64_t user_id, const char* username, int is_admin, void* userdata);
 typedef void (*FriendCallback)(int64_t friend_id, const char* username, void* userdata);
 typedef void (*FriendRequestCallback)(int64_t target_user_id, const char* username, int is_incoming, void* userdata);
+typedef void (*UserListCallback)(int64_t user_id, const char* username, const char* status, void* userdata);
 
 /* Database connection */
 DbContext* db_connect(const char* conninfo);
@@ -41,6 +42,7 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id);
 /* Channel */
 int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
+int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_id_out);
 int db_delete_channel(DbContext* db, int64_t channel_id);
 int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata);
 int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const char* content);
@@ -57,5 +59,7 @@ int db_remove_friendship(DbContext* db, int64_t user_id, int64_t friend_id);
 int db_list_friends(DbContext* db, int64_t user_id, FriendCallback friend_cb, void* userdata);
 int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallback req_cb, void* userdata);
 int db_user_has_active_session(DbContext* db, int64_t user_id, int* is_online_out);
+int db_update_user_status(DbContext* db, int64_t user_id, const char* status);
+int db_list_all_users(DbContext* db, UserListCallback user_cb, void* userdata);
 
 #endif

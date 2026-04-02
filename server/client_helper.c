@@ -60,7 +60,6 @@ int send_action_response(int client_fd, PacketType type, int action, int status_
 			response.payload.social.action = (SocialAction)action;
 			response.payload.social.status_code = status_code;
 			break;
-		case SYSTEM:
 		default:
 			response.payload.system.action = (SystemAction)action;
 			response.payload.system.status_code = status_code;

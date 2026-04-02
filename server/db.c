@@ -537,6 +537,72 @@ int db_accept_friend_request(DbContext* db, int64_t my_user_id, int64_t friend_i
     return 0;
 }
 
+int db_remove_friendship(DbContext* db, int64_t user_id, int64_t friend_id) {
+    // Check if they are actually friends (is_accepted = 1) in either direction
+    const char* check_sql =
+        "SELECT id FROM friends WHERE is_accepted = 1 AND "
+        "((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?));";
+    sqlite3_stmt* check_stmt;
+    int found = 0;
+
+    if (sqlite3_prepare_v2(db->conn, check_sql, -1, &check_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(check_stmt, 1, user_id);
+        sqlite3_bind_int64(check_stmt, 2, friend_id);
+        sqlite3_bind_int64(check_stmt, 3, friend_id);
+        sqlite3_bind_int64(check_stmt, 4, user_id);
+        if (sqlite3_step(check_stmt) == SQLITE_ROW) {
+            found = 1;
+        }
+        sqlite3_finalize(check_stmt);
+    }
+
+    if (!found) return -1; // Not friends
+
+    const char* del_sql =
+        "DELETE FROM friends WHERE "
+        "((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?));";
+    sqlite3_stmt* del_stmt;
+    if (sqlite3_prepare_v2(db->conn, del_sql, -1, &del_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(del_stmt, 1, user_id);
+        sqlite3_bind_int64(del_stmt, 2, friend_id);
+        sqlite3_bind_int64(del_stmt, 3, friend_id);
+        sqlite3_bind_int64(del_stmt, 4, user_id);
+        sqlite3_step(del_stmt);
+        sqlite3_finalize(del_stmt);
+    }
+
+    return 0;
+}
+
+int db_reject_friend_request(DbContext* db, int64_t my_user_id, int64_t sender_id) {
+    // Only delete if there's a pending incoming request (sender sent it to me)
+    const char* check_sql = "SELECT id FROM friends WHERE user_id = ? AND friend_id = ? AND is_accepted = 0;";
+    sqlite3_stmt* check_stmt;
+    int found = 0;
+
+    if (sqlite3_prepare_v2(db->conn, check_sql, -1, &check_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(check_stmt, 1, sender_id);
+        sqlite3_bind_int64(check_stmt, 2, my_user_id);
+        if (sqlite3_step(check_stmt) == SQLITE_ROW) {
+            found = 1;
+        }
+        sqlite3_finalize(check_stmt);
+    }
+
+    if (!found) return -1; // No incoming request from this user
+
+    const char* del_sql = "DELETE FROM friends WHERE user_id = ? AND friend_id = ? AND is_accepted = 0;";
+    sqlite3_stmt* del_stmt;
+    if (sqlite3_prepare_v2(db->conn, del_sql, -1, &del_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(del_stmt, 1, sender_id);
+        sqlite3_bind_int64(del_stmt, 2, my_user_id);
+        sqlite3_step(del_stmt);
+        sqlite3_finalize(del_stmt);
+    }
+
+    return 0;
+}
+
 int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallback req_cb, void* userdata) {
     if (!req_cb) return -1;
 
@@ -627,4 +693,109 @@ int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_
     }
     
     return -1;
+}
+
+int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out) {
+    const char* sql = "SELECT id FROM channels WHERE server_id = ? AND name = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    sqlite3_bind_int64(stmt, 1, server_id);
+    sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+    
+    int rc = sqlite3_step(stmt);
+    
+    if (rc == SQLITE_ROW && channel_id_out != NULL) {
+        *channel_id_out = sqlite3_column_int64(stmt, 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_ROW) ? 0 : -1;
+}
+
+int db_delete_channel(DbContext* db, int64_t channel_id) {
+    const char* sql = "DELETE FROM channels WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    sqlite3_bind_int64(stmt, 1, channel_id);
+    
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+// Add to db.c
+int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_id_out) {
+    const char* sql = "SELECT server_id FROM channels WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    sqlite3_bind_int64(stmt, 1, channel_id);
+    
+    int rc = sqlite3_step(stmt);
+    
+    if (rc == SQLITE_ROW && server_id_out != NULL) {
+        *server_id_out = sqlite3_column_int64(stmt, 0);
+    }
+    
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_ROW) ? 0 : -1;
+}
+
+int db_list_all_users(DbContext* db, UserListCallback user_cb, void* userdata) {
+    if (!user_cb) return -1;
+
+    const char* sql = "SELECT id, username, status FROM users ORDER BY username ASC;";
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+
+    int rc;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int64_t user_id = sqlite3_column_int64(stmt, 0);
+        const char* username = (const char*)sqlite3_column_text(stmt, 1);
+        const char* status = (const char*)sqlite3_column_text(stmt, 2);
+        user_cb(user_id, username ? username : "", status ? status : "", userdata);
+    }
+
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+int db_update_user_status(DbContext* db, int64_t user_id, const char* status) {
+    const char* sql = "UPDATE users SET status = ? WHERE id = ?;";
+    sqlite3_stmt* stmt;
+
+    if (db == NULL || status == NULL) {
+        return -1;
+    }
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare user status update");
+    }
+
+    sqlite3_bind_text(stmt, 1, status, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, user_id);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute user status update");
+    }
+
+    return sqlite3_changes(db->conn) > 0 ? 0 : -1;
 }
