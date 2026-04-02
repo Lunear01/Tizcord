@@ -26,7 +26,9 @@ int send_packet_to_client(int client_fd, const TizcordPacket *packet) {
 	if (bytes_sent < 0) {
 		fprintf(stderr, "[Client Helper] Failed to send packet: %s\n", strerror(errno));
 		return -1;
-	} else if (bytes_sent != sizeof(TizcordPacket)) {
+	} 
+	
+	else if (bytes_sent != sizeof(TizcordPacket)) {
 		fprintf(stderr, "[Client Helper] Partial packet sent: %zd bytes\n", bytes_sent);
 		return -1;
 	}

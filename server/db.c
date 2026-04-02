@@ -41,7 +41,7 @@ void db_disconnect(DbContext* db) {
     }
 }
 
-/* -------------- HELPER FUNCTIONS ------------------ */
+// Helper Functions
 int db_user_is_server_admin(DbContext* db, int64_t server_id, int64_t user_id, int* is_admin_out) {
     const char* sql = "SELECT is_admin FROM server_members WHERE server_id = ? AND user_id = ?;";
     sqlite3_stmt* stmt;
@@ -63,7 +63,7 @@ int db_user_is_server_admin(DbContext* db, int64_t server_id, int64_t user_id, i
     return -1; // Not a member or not found
 }
 
-/* -------------- USER OPERATIONS ------------------ */
+// User Operations
 int db_create_user(DbContext* db, const char* username, const char* password_hash, int64_t* user_id_out) {
 
     // Dummy email since email is NOT NULL UNIQUE but we skip it for now
@@ -171,7 +171,7 @@ int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const ch
     return 0; 
 }
 
-/* -------------- DIRECT MESSAGE OPERATIONS ------------------ */
+// Direct message operations
 int db_save_direct_message(DbContext* db, int64_t sender_id, int64_t receiver_id, const char* content){
 
 }
@@ -180,7 +180,7 @@ int db_list_direct_messages(DbContext* db, int64_t user_id, MessageCallback dm_c
 
 }
 
-/* -------------- PACKET_SERVER OPERATIONS ------------------ */
+// Packet server operations
 int db_get_server(DbContext* db, const char* name, int64_t* server_id_out){
     const char* sql_select = "SELECT id FROM servers WHERE name = ?;";
     sqlite3_stmt* stmt_select;
@@ -316,7 +316,6 @@ int db_edit_server(DbContext* db, int64_t server_id, int64_t user_id, const char
     return 0;
 }
 
-// Replace db_list_servers in db.c
 int db_list_servers(DbContext* db, ServerCallback server_cb, void *userdata) {
     // Join with server_members to count how many users are in each server
     const char* sql = 
@@ -409,9 +408,8 @@ int db_list_server_members(DbContext* db, int64_t server_id, MemberCallback memb
     return 0;
 }
 
-// Replace this function in db.c
 int db_list_joined_servers(DbContext* db, int64_t user_id, ServerCallback server_cb, void* userdata) {
-    // We use a subquery to count the members for each server the user is in
+    // Use a subquery to count the members for each server the user is in
     const char* sql =
         "SELECT s.id, s.name, "
         "  (SELECT COUNT(*) FROM server_members WHERE server_id = s.id) as count "
@@ -433,8 +431,6 @@ int db_list_joined_servers(DbContext* db, int64_t user_id, ServerCallback server
             int64_t id = sqlite3_column_int64(stmt, 0);
             const char* name = (const char*)sqlite3_column_text(stmt, 1);
             int count = sqlite3_column_int(stmt, 2); // Get the counted members
-            
-            // Pass the 4 arguments, including the count
             server_cb(id, name != NULL ? name : "", count, userdata);
         }
     }
@@ -472,7 +468,7 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id) {
     return sqlite3_changes(db->conn) > 0 ? 0 : -1;
 }
 
-/* -------------- PACKET_SOCIAL OPERATIONS ------------------ */
+// Packet social operations
 int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id) {
     int same_direction_status = -1;
     int reciprocal_status = -1;
@@ -768,7 +764,6 @@ int db_delete_channel(DbContext* db, int64_t channel_id) {
     return (rc == SQLITE_DONE) ? 0 : -1;
 }
 
-// Add to db.c
 int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_id_out) {
     const char* sql = "SELECT server_id FROM channels WHERE id = ?;";
     sqlite3_stmt* stmt;

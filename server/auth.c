@@ -57,7 +57,9 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
                 break;
             }
         }
-    } else {
+    } 
+    
+    else {
         printf("[Server] Failed to register user (Username likely already exists!).\n");
         reply.payload.auth.status_code = 1;
     }
@@ -96,7 +98,9 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     if (computed_hash == NULL || strcmp(computed_hash, db_hash) != 0) {
         printf("[Server] Login Failed: Incorrect password for %s.\n", packet->payload.auth.username);
         reply.payload.auth.status_code = 1;
-    } else {
+    } 
+    
+    else {
         printf("[Server] Successfully authenticated user %s! (ID: %lld)\n", 
                packet->payload.auth.username, (long long)db_user_id);
         reply.payload.auth.status_code = 0;
@@ -118,7 +122,9 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
 void handle_auth_packet(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     if (packet->payload.auth.action == AUTH_REGISTER) {
         register_account(ctx, client_fd, packet);
-    } else if (packet->payload.auth.action == AUTH_LOGIN) {
+    } 
+    
+    else if (packet->payload.auth.action == AUTH_LOGIN) {
         login_account(ctx, client_fd, packet);
     }
 }
