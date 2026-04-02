@@ -31,9 +31,13 @@ typedef struct {
     const char *name_ptrs[MAX_SERVER_MEMBERS];
     int64_t ids[MAX_SERVER_MEMBERS];
     int status_codes[MAX_SERVER_MEMBERS];
+    ServerContext *ctx;
     size_t count;
     int truncated;
 } MemberListAccumulator;
+
+#define MEMBER_FLAG_ADMIN 1
+#define MEMBER_FLAG_ONLINE 2
 
 static void collect_server_list_item(int64_t server_id, const char *server_name, int member_count,
                                      void *userdata) {
@@ -90,13 +94,40 @@ static void collect_member_list_item(int64_t user_id, const char *username,
     }
 
     acc->ids[acc->count] = user_id;
-    acc->status_codes[acc->count] = is_admin;
+    acc->status_codes[acc->count] = is_admin ? MEMBER_FLAG_ADMIN : 0;
+    if (acc->ctx != NULL) {
+        for (int i = 0; i < acc->ctx->client_count; i++) {
+            if (acc->ctx->clients[i].socket_fd > 0 &&
+                acc->ctx->clients[i].is_authenticated &&
+                acc->ctx->clients[i].id == user_id) {
+                acc->status_codes[acc->count] |= MEMBER_FLAG_ONLINE;
+                break;
+            }
+        }
+    }
 
     strncpy(acc->names[acc->count], username != NULL ? username : "",
             MAX_NAME_LEN - 1);
     acc->names[acc->count][MAX_NAME_LEN - 1] = '\0';
     acc->name_ptrs[acc->count] = acc->names[acc->count];
     acc->count++;
+}
+
+typedef struct {
+    ServerContext *ctx;
+} MemberRefreshContext;
+
+static void refresh_joined_server_cb(int64_t server_id, const char *server_name,
+                                     int member_count, void *userdata) {
+    (void)server_name;
+    (void)member_count;
+
+    MemberRefreshContext *ctx = (MemberRefreshContext *)userdata;
+    if (ctx == NULL || ctx->ctx == NULL) {
+        return;
+    }
+
+    notify_server_member_list(ctx->ctx, server_id);
 }
 
 void handle_server_packet(ServerContext *ctx, ClientNode *client,
@@ -180,6 +211,7 @@ void join_tizcord_server(ServerContext *ctx, ClientNode *client,
                     "[Server] Failed to send join response to client id=%lld\n",
                     (long long)client->id);
         }
+        notify_server_member_list(ctx, server_id);
     } else {
         fprintf(stderr, "[Server] Failed to join server id=%lld\n", (long long)server_id);
         send_action_response(client->socket_fd, PACKET_SERVER, SERVER_JOIN,
@@ -209,6 +241,9 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
     if (db_leave_server(ctx->db, server_id, client->id) == 0) {
         printf("[Server] User id=%lld left server id=%lld\n", (long long)client->id,
                (long long)server_id);
+        if (client->current_server_index == server_id) {
+            client->current_server_index = -1;
+        }
         if (send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LEAVE,
                                  RESP_OK, NULL) != 0) {
             fprintf(
@@ -216,6 +251,7 @@ void leave_tizcord_server(ServerContext *ctx, ClientNode *client,
                 "[Server] Failed to send leave response to client id=%lld\n",
                 client->id);
         }
+        notify_server_member_list(ctx, server_id);
     } else {
         fprintf(stderr, "[Server] Failed to leave server id=%lld\n", (long long)server_id);
         send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LEAVE,
@@ -406,7 +442,7 @@ void list_tizcord_channels(ServerContext *ctx, ClientNode *client, int64_t serve
 }
 
 void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
-    MemberListAccumulator acc = {0};
+    MemberListAccumulator acc = {.ctx = ctx};
 
     if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0) {
         fprintf(stderr, "[Server] Invalid list members request\n");
@@ -423,6 +459,8 @@ void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
         return;
     }
 
+    client->current_server_index = (int)server_id;
+
     if (db_list_server_members(ctx->db, server_id, collect_member_list_item,
                                &acc) != 0) {
         send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
@@ -435,6 +473,33 @@ void list_members(ServerContext *ctx, ClientNode *client, int64_t server_id) {
         send_action_response(client->socket_fd, PACKET_SERVER, SERVER_LIST_MEMBERS,
                              RESP_ERR_INTERNAL, NULL);
     }
+}
+
+void notify_server_member_list(ServerContext *ctx, int64_t server_id) {
+    if (ctx == NULL || server_id <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < ctx->client_count; i++) {
+        ClientNode *client = &ctx->clients[i];
+        if (client->socket_fd <= 0 || !client->is_authenticated) {
+            continue;
+        }
+        if (client->current_server_index != server_id) {
+            continue;
+        }
+
+        list_members(ctx, client, server_id);
+    }
+}
+
+void notify_server_member_lists_for_user(ServerContext *ctx, int64_t user_id) {
+    if (ctx == NULL || ctx->db == NULL || user_id <= 0) {
+        return;
+    }
+
+    MemberRefreshContext refresh_ctx = {.ctx = ctx};
+    db_list_joined_servers(ctx->db, user_id, refresh_joined_server_cb, &refresh_ctx);
 }
 
 void list_joined_servers(ServerContext *ctx, ClientNode *client) {

@@ -83,6 +83,15 @@ int send_login(const char *username, const char *password) {
     return 0;
 }
 
+void send_logout(void) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_AUTH);
+    packet.payload.auth.action = AUTH_LOGOUT;
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
 void create_server(const char *server_name) {
     
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
