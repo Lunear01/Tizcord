@@ -966,19 +966,39 @@ void ui_receive_channel_message(TizcordPacket *packet) {
 }
 
 void ui_receive_dm_message(TizcordPacket *packet) {
-    /// Find the friend who sent this message
+    int friend_idx = -1;
+
     for (int i = 0; i < friend_count; i++) {
-        if (ui_friends[i].id == packet->sender_id) {
-            
-            if (ui_friends[i].msg_count < MAX_MESSAGES) {
-                Message *m = &ui_friends[i].messages[ui_friends[i].msg_count++];
-                
-                // Fallback to ID if username isn't known, otherwise use known friend name
-                strncpy(m->sender, ui_friends[i].username, MAX_NAME_LEN - 1);
-                strncpy(m->body, packet->payload.dm.message, MAX_MSG_LEN - 1);
-                m->ts = packet->timestamp;
-            }
+        if (ui_friends[i].id == packet->sender_id || 
+            ui_friends[i].id == (int64_t)packet->payload.dm.recipient_id) {
+            friend_idx = i;
             break;
+        }
+    }
+
+    if (friend_idx != -1) {
+        UIFriend *f = &ui_friends[friend_idx];
+
+        if (packet->list_frame == LIST_FRAME_START) {
+            f->msg_count = 0;
+            return;
+        }
+        if (packet->list_frame == LIST_FRAME_END) return;
+
+        if (f->msg_count < MAX_MESSAGES) {
+            Message *m = &f->messages[f->msg_count++];
+            
+            if (packet->sender_id == f->id) {
+                strncpy(m->sender, f->username, MAX_NAME_LEN - 1);
+            } else {
+                if (current_user >= 0) {
+                    strncpy(m->sender, users[current_user].username, MAX_NAME_LEN - 1);
+                } else {
+                    strcpy(m->sender, "Me");
+                }
+            }
+            strncpy(m->body, packet->payload.dm.message, MAX_MSG_LEN - 1);
+            m->ts = packet->timestamp;
         }
     }
 }
@@ -1453,11 +1473,8 @@ void process_network_packet(TizcordPacket *packet) {
             if (packet->payload.channel.action == CHANNEL_MESSAGE) {
                 ui_receive_channel_message(packet);
             } 
-             
             else if (packet->payload.channel.action == CHANNEL_CREATE) {
-                
                 if (packet->payload.channel.status_code == 0) {
-                    // Close the window on success
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
                         cmd_input[0] = '\0';
@@ -1467,13 +1484,10 @@ void process_network_packet(TizcordPacket *packet) {
                     if (active_server >= 0) {
                         request_server_channels(servers[active_server].id);
                     }
-                } 
-                
-                else {
+                } else {
                     strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
                 }
             } 
-            
             else if (packet->payload.channel.action == CHANNEL_DELETE) {
                 if (packet->payload.channel.status_code == 0) {
                     command_status_msg[0] = '\0';
@@ -1486,45 +1500,55 @@ void process_network_packet(TizcordPacket *packet) {
                         active_channel = 0; 
                         request_server_channels(servers[active_server].id);
                     }
-                } 
-                
-                else {
+                } else {
                     strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
                 }
             }
             break;
+
         case PACKET_DM:
             if (packet->payload.dm.action == DM_MESSAGE) {
                 ui_receive_dm_message(packet);
             }
             break;
+
         case PACKET_SERVER:
             ui_update_server_state(packet);
             break;
+
         case PACKET_AUTH:
             ui_handle_auth_response(packet);
             break;
+
         case PACKET_SOCIAL:
             if (packet->payload.social.action == SOCIAL_LIST_FRIENDS) {
                 if (packet->list_frame == LIST_FRAME_START) {
                     friend_count = 0;
                     friend_cursor = 0;
                 } 
-                
-                else if (packet->list_frame == LIST_FRAME_MIDDLE && friend_count < MAX_FRIENDS) {
+                else if ((packet->list_frame == LIST_FRAME_MIDDLE || packet->list_frame == LIST_FRAME_SINGLE) && friend_count < MAX_FRIENDS) {
                     ui_friends[friend_count].id = packet->payload.social.target_user_id;
                     strncpy(ui_friends[friend_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
                     ui_friends[friend_count].type = packet->payload.social.status_code;
                     friend_count++;
                 }
+                else if (packet->list_frame == LIST_FRAME_END || packet->list_frame == LIST_FRAME_SINGLE) {
+                    if (current_screen == SCREEN_DMS && friend_count > 0) {
+                        for (int i = 0; i < friend_count; i++) {
+                            if (ui_friends[i].type == 2) {
+                                active_dm_friend = i;
+                                request_dm_history(ui_friends[i].id);
+                                break;
+                            }
+                        }
+                    }
+                }
             } 
-            
             else if (packet->payload.social.action == SOCIAL_LIST_USERS) {
                 if (packet->list_frame == LIST_FRAME_START) {
                     all_user_count = 0;
                     user_list_cursor = 0;
                 } 
-                
                 else if (packet->list_frame == LIST_FRAME_MIDDLE && all_user_count < MAX_ALL_USERS) {
                     all_users[all_user_count].id = packet->payload.social.target_user_id;
                     strncpy(all_users[all_user_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
@@ -1534,21 +1558,14 @@ void process_network_packet(TizcordPacket *packet) {
                     all_users[all_user_count].is_online = packet->payload.social.status_code;
                     all_user_count++;
                 } 
-                
                 else if (packet->list_frame == LIST_FRAME_END) {
                     // Sort: online first, then alphabetical
                     for (int i = 0; i < all_user_count - 1; i++) {
                         for (int j = i + 1; j < all_user_count; j++) {
                             int swap = 0;
-
-                            if (all_users[j].is_online > all_users[i].is_online) {
-                                swap = 1;
-                            } 
-                            
+                            if (all_users[j].is_online > all_users[i].is_online) swap = 1;
                             else if (all_users[j].is_online == all_users[i].is_online) {
-                                if (strcasecmp(all_users[j].username, all_users[i].username) < 0) {
-                                    swap = 1;
-                                }
+                                if (strcasecmp(all_users[j].username, all_users[i].username) < 0) swap = 1;
                             }
                             if (swap) {
                                 UIUser tmp = all_users[i];
@@ -1559,11 +1576,9 @@ void process_network_packet(TizcordPacket *packet) {
                     }
                 }
             } 
-            
             else if (packet->payload.social.action == SOCIAL_UPDATE_STATUS) {
                 int is_own_status_update = current_user >= 0 &&
-                                           strcmp(packet->payload.social.target_username,
-                                                  users[current_user].username) == 0;
+                    strcmp(packet->payload.social.target_username, users[current_user].username) == 0;
 
                 if (packet->payload.social.status_code == RESP_OK) {
                     for (int i = 0; i < all_user_count; i++) {
@@ -1574,28 +1589,21 @@ void process_network_packet(TizcordPacket *packet) {
                             break;
                         }
                     }
-
                     if (is_own_status_update) {
                         request_user_list();
                         command_status_msg[0] = '\0';
+                        if (current_screen == SCREEN_COMMAND) {
+                            cmd_input[0] = '\0';
+                            cmd_input_len = 0;
+                            current_screen = previous_screen;
+                        }
                     }
-
-                    if (is_own_status_update && current_screen == SCREEN_COMMAND) {
-                        cmd_input[0] = '\0';
-                        cmd_input_len = 0;
-                        current_screen = previous_screen;
-                    }
-                } 
-                
-                else if (packet->payload.social.status_code == RESP_ERR_INVALID) {
-                    strcpy(command_status_msg, "Error: Status must be between 1 and 64 characters.");
-                } 
-                
-                else {
-                    strcpy(command_status_msg, "Error: Failed to update your status.");
+                } else {
+                    strcpy(command_status_msg, "Error updating status.");
                 }
             }
             break;
+
         default:
             break;
     }
@@ -1986,6 +1994,10 @@ void handle_dms_input(int ch) {
             } while (ui_friends[active_dm_friend].type != 2 && friend_count > 0);
             dm_input[0] = '\0';
             dm_input_len = 0;
+
+            if (active_dm_friend != -1) {
+                request_dm_history(ui_friends[active_dm_friend].id);
+            }
             break;
             
         case '`':
