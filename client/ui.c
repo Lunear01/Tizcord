@@ -961,6 +961,32 @@ void ui_handle_auth_response(TizcordPacket *packet) {
             strcpy(auth.error, "Invalid Username or Password.");
             auth.success[0] = '\0';
         }
+    } else if (packet->payload.auth.action == AUTH_LOGOUT) {
+        current_user = -1;
+        active_server = -1;
+        active_channel = 0;
+        active_dm_friend = -1;
+        previous_screen = SCREEN_LOGIN;
+        current_screen = SCREEN_LOGIN;
+        server_count = 0;
+        server_cursor = 0;
+        friend_count = 0;
+        friend_cursor = 0;
+        all_user_count = 0;
+        user_list_cursor = 0;
+        show_help = 0;
+        chat_input[0] = '\0';
+        chat_input_len = 0;
+        dm_input[0] = '\0';
+        dm_input_len = 0;
+        cmd_input[0] = '\0';
+        cmd_input_len = 0;
+        command_status_msg[0] = '\0';
+        auth.username[0] = '\0';
+        auth.password[0] = '\0';
+        auth.field = 0;
+        auth.success[0] = '\0';
+        strcpy(auth.error, "Signed out: logged in elsewhere");
     }
     
 }
