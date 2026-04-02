@@ -22,6 +22,7 @@ void accept_friend_request(const char *target_username);
 void unfriend(const char *target_username);
 void reject_friend_request(const char *target_username);
 void request_friend_list(void);
+void request_user_list(void);
 void list_joined_servers_request(void);
 
 void request_server_channels(int64_t server_id);

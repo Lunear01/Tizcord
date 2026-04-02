@@ -193,6 +193,15 @@ void request_friend_list(void) {
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
+void request_user_list(void) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_LIST_USERS;
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
 void request_server_channels(int64_t server_id) {
     if (client_socket < 0) return;
     TizcordPacket packet = create_base_packet(PACKET_SERVER);

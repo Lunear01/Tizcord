@@ -165,6 +165,68 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             notify_friend_list_update(ctx, friend_id);
             break;
         }
+        case SOCIAL_LIST_USERS: {
+            // We'll collect users from DB, then for each check online status
+            typedef struct {
+                ServerContext *srv_ctx;
+                int client_fd;
+                int32_t current_index;
+                int32_t list_id;
+            } UserListContext;
+
+            // Callback that checks online status and sends packet
+            void user_list_cb(int64_t user_id, const char* username, int unused, void* ud) {
+                (void)unused;
+                UserListContext *ulc = (UserListContext *)ud;
+                if (!ulc) return;
+
+                // Check if this user is currently connected
+                int is_online = 0;
+                for (int i = 0; i < ulc->srv_ctx->client_count; i++) {
+                    if (ulc->srv_ctx->clients[i].socket_fd > 0 &&
+                        ulc->srv_ctx->clients[i].id == user_id &&
+                        ulc->srv_ctx->clients[i].is_authenticated) {
+                        is_online = 1;
+                        break;
+                    }
+                }
+
+                TizcordPacket pkt = create_base_packet(PACKET_SOCIAL);
+                pkt.payload.social.action = SOCIAL_LIST_USERS;
+                pkt.list_id = ulc->list_id;
+                pkt.list_index = ulc->current_index++;
+                pkt.list_total = -1;
+                pkt.list_frame = LIST_FRAME_MIDDLE;
+                pkt.payload.social.target_user_id = user_id;
+                strncpy(pkt.payload.social.target_username, username, MAX_NAME_LEN - 1);
+                pkt.payload.social.status_code = is_online;
+
+                write(ulc->client_fd, &pkt, sizeof(TizcordPacket));
+            }
+
+            UserListContext ulc = {
+                .srv_ctx = ctx,
+                .client_fd = client->socket_fd,
+                .current_index = 0,
+                .list_id = (int32_t)client->id
+            };
+
+            TizcordPacket start_pkt = create_base_packet(PACKET_SOCIAL);
+            start_pkt.payload.social.action = SOCIAL_LIST_USERS;
+            start_pkt.list_id = ulc.list_id;
+            start_pkt.list_frame = LIST_FRAME_START;
+            write(client->socket_fd, &start_pkt, sizeof(TizcordPacket));
+
+            db_list_all_users(ctx->db, user_list_cb, &ulc);
+
+            TizcordPacket end_pkt = create_base_packet(PACKET_SOCIAL);
+            end_pkt.payload.social.action = SOCIAL_LIST_USERS;
+            end_pkt.list_id = ulc.list_id;
+            end_pkt.list_total = ulc.current_index;
+            end_pkt.list_frame = LIST_FRAME_END;
+            write(client->socket_fd, &end_pkt, sizeof(TizcordPacket));
+            break;
+        }
         default:
             send_action_response(client->socket_fd, PACKET_SOCIAL, packet->payload.social.action, RESP_ERR_INVALID, "Invalid action.");
             break;

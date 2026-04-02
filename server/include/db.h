@@ -59,5 +59,6 @@ int db_remove_friendship(DbContext* db, int64_t user_id, int64_t friend_id);
 int db_list_friends(DbContext* db, int64_t user_id, FriendCallback friend_cb, void* userdata);
 int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallback req_cb, void* userdata);
 int db_user_has_active_session(DbContext* db, int64_t user_id, int* is_online_out);
+int db_list_all_users(DbContext* db, MemberCallback user_cb, void* userdata);
 
 #endif

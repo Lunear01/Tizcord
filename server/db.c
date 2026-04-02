@@ -784,3 +784,24 @@ int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_
     sqlite3_finalize(stmt);
     return (rc == SQLITE_ROW) ? 0 : -1;
 }
+
+int db_list_all_users(DbContext* db, MemberCallback user_cb, void* userdata) {
+    if (!user_cb) return -1;
+
+    const char* sql = "SELECT id, username FROM users ORDER BY username ASC;";
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+
+    int rc;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        int64_t user_id = sqlite3_column_int64(stmt, 0);
+        const char* username = (const char*)sqlite3_column_text(stmt, 1);
+        user_cb(user_id, username ? username : "", 0, userdata);
+    }
+
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
