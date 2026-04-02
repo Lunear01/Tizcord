@@ -9,6 +9,8 @@
 typedef struct DbContext DbContext;
 
 typedef void (*MessageCallback)(int64_t msg_id, const char* username, const char* content, int64_t timestamp, void* userdata);
+typedef void (*DirectMessageCallback)(int64_t msg_id, const char* sender_username, 
+	const char* receiver_usernam, const char* content, int64_t timestamp, void* userdata);
 typedef void (*ServerCallback)(int64_t id, const char* name, int member_count, void* userdata);
 typedef void (*ChannelCallback)(int64_t channel_id, const char* channel_name, void* userdata);
 typedef void (*MemberCallback)(int64_t user_id, const char* username, int is_admin, void* userdata);
@@ -49,7 +51,7 @@ int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const ch
 
 /* Direct Messages */
 int db_save_direct_message(DbContext* db, int64_t sender_id, int64_t receiver_id, const char* content);
-int db_list_direct_messages(DbContext* db, int64_t user_id, MessageCallback dm_cb, void* userdata);
+int db_list_direct_messages(DbContext* db, int64_t sender_id, int64_t receiver_id, DirectMessageCallback dm_cb, void* userdata);
 
 /* Social */
 int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id);

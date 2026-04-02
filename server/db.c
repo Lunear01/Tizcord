@@ -173,11 +173,65 @@ int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const ch
 
 /* -------------- DIRECT MESSAGE OPERATIONS ------------------ */
 int db_save_direct_message(DbContext* db, int64_t sender_id, int64_t receiver_id, const char* content){
+    const char* sql_insert = "INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES (?, ?, ?);";
+    sqlite3_stmt* stmt_insert;
 
+    if (sqlite3_prepare_v2(db->conn, sql_insert, -1, &stmt_insert, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare direct message insert");
+    }
+
+    sqlite3_bind_int64(stmt_insert, 1, sender_id);
+    sqlite3_bind_int64(stmt_insert, 2, receiver_id);
+    sqlite3_bind_text(stmt_insert, 3, content, -1, SQLITE_STATIC);
+
+    int rc = sqlite3_step(stmt_insert);
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt_insert);
+        return db_err(db, "Failed to execute direct message insert");
+    }
+    sqlite3_finalize(stmt_insert);
+
+    return 0;
 }
 
-int db_list_direct_messages(DbContext* db, int64_t user_id, MessageCallback dm_cb, void* userdata){
+int db_list_direct_messages(DbContext* db, int64_t sender_id, int64_t receiver_id, DirectMessageCallback dm_cb, void* userdata){
+    const char* sql = 
+        "SELECT dm.id, u1.username as sender, u2.username as receiver, dm.content, dm.created_at "
+        "FROM direct_messages dm "
+        "JOIN users u1 ON (dm.sender_id = u.id) "
+        "JOIN users u2 ON (dm.receiver_id = u2.id) "
+        "WHERE (dm.sender_id = ? AND dm.receiver_id = ?) OR (dm.sender_id = ? AND dm.receiver_id = ?) "
+        "ORDER BY dm.created_at ASC;";
 
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare direct messages select");
+    }
+    sqlite3_bind(stmt, 1, sender_id);
+    sqlite3_bind(stmt, 2, receiver_id);
+    sqlite3_bind(stmt, 3, receiver_id);
+    sqlite3_bind(stmt, 4, sender_id);
+
+    int rc;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (dm_cb != NULL) {
+            int64_t msg_id = sqlite3_column_int64(stmt, 0);
+            const char* sender_username = (const char*)sqlite3_column_text(stmt, 1);
+            const char* receiver_username = (const char*)sqlite3_column_text(stmt, 2);
+            const char* content = (const char*)sqlite3_column_text(stmt, 3);
+            int64_t timestamp = sqlite3_column_int64(stmt, 4);
+            dm_cb(msg_id, sender_username != NULL ? sender_username : "", 
+                receiver_username != NULL ? receiver_username : "", 
+                content != NULL ? content : "", timestamp, userdata);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed while iterating direct messages");
+    }
+    return 0;
 }
 
 /* -------------- PACKET_SERVER OPERATIONS ------------------ */
