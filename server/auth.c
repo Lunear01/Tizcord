@@ -106,7 +106,9 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
         }
 
         notify_all_user_lists(ctx);
-    } else {
+    } 
+    
+    else {
         printf("[Server] Failed to register user (Username likely already exists!).\n");
         reply.payload.auth.status_code = 1;
     }
@@ -223,7 +225,9 @@ void handle_auth_packet(ServerContext *ctx, int client_fd, TizcordPacket *packet
     
     else if (packet->payload.auth.action == AUTH_LOGIN) {
         login_account(ctx, client_fd, packet);
-    } else if (packet->payload.auth.action == AUTH_LOGOUT) {
+    } 
+    
+    else if (packet->payload.auth.action == AUTH_LOGOUT) {
         logout_account(ctx, client_fd, packet);
     }
 }
