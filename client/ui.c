@@ -106,6 +106,7 @@ Screen previous_screen = SCREEN_LOGIN;
 char cmd_input[MAX_MSG_LEN] = {0};
 int cmd_input_len = 0;
 char command_status_msg[128] = {0};
+int show_help = 0;
 
 typedef struct {
     int64_t id;
@@ -996,16 +997,6 @@ void ui_receive_channel_message(TizcordPacket *packet) {
     }
 }
 
-void ui_edit_channel_message(TizcordPacket *packet) {
-    // TODO: Iterate through c->messages and string-match the message_id to overwrite body
-    (void)packet; 
-}
-
-void ui_delete_channel_message(TizcordPacket *packet) {
-    // TODO: Iterate through c->messages, find message_id, and shift array left to delete
-    (void)packet;
-}
-
 void ui_receive_dm_message(TizcordPacket *packet) {
     /// Find the friend who sent this message
     for (int i = 0; i < friend_count; i++) {
@@ -1149,6 +1140,11 @@ void draw_command(int rows, int cols)
     if (bx < 0) bx = 0;
     if (by < 0) by = 0;
 
+    // Shift box higher up if the help menu is showing
+    if (show_help) {
+        by = 4; 
+    }
+
     // Draw the centered box
     draw_box(by, bx, bh, bw, 5);
 
@@ -1162,7 +1158,32 @@ void draw_command(int rows, int cols)
     mvprintw(by + 1, bx + 2, "> %s", cmd_input);
     attroff(COLOR_PAIR(1));
 
-    if (command_status_msg[0] != '\0') {
+    // Draw the Help Menu OR the Status Message
+    if (show_help) {
+        const char *help_lines[] = {
+            "Available Commands:",
+            "-------------------",
+            "/friend [username]",
+            "/accept [username]",
+            "/unfriend [username]",
+            "/reject [username]",
+            "/createserver [server_name]",
+            "/deleteserver [server_name]",
+            "/createchannel [channel_name]",
+            "/deletechannel [channel_name]",
+            "/kick [username]",
+            "/set_status [status]",
+            "/help",
+            NULL
+        };
+        
+        attron(COLOR_PAIR(5) | A_BOLD);
+        int hr = by + bh + 1; // Start printing immediately below the box
+        for (int i = 0; help_lines[i] != NULL; i++) {
+            mvprintw(hr++, bx, "%s", help_lines[i]);
+        }
+        attroff(COLOR_PAIR(5) | A_BOLD);
+    } else if (command_status_msg[0] != '\0') {
         attron(COLOR_PAIR(8) | A_BOLD);
         mvprintw(by + bh, bx, "%s", command_status_msg);
         attroff(COLOR_PAIR(8) | A_BOLD);
@@ -1180,14 +1201,21 @@ void handle_command_input(int ch)
         case 27: // ESC key
             // Cancel and return to previous screen
             current_screen = previous_screen;
+            show_help = 0;
             break;
 
         case '\n':
         case KEY_ENTER:
         {
             int should_close = 1; // Default to closing the window
+
+            if (strcmp(cmd_input, "/help") == 0) {
+                should_close = 0;  // Keep window open
+                show_help = 1;     // Trigger the help menu to draw
+                command_status_msg[0] = '\0';
+            }
             
-            if (strncmp(cmd_input, "/friend ", 8) == 0) {
+            else if (strncmp(cmd_input, "/friend ", 8) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
                 strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
                 
@@ -1388,6 +1416,7 @@ void handle_command_input(int ch)
                 cmd_input_len = 0;
                 current_screen = previous_screen;
                 command_status_msg[0] = '\0';
+                show_help = 0;
             }
             break;
         }
@@ -1397,6 +1426,7 @@ void handle_command_input(int ch)
             // Delete character
             if (cmd_input_len > 0)
                 cmd_input[--cmd_input_len] = '\0';
+            show_help = 0;
             break;
 
         default:
@@ -1406,6 +1436,7 @@ void handle_command_input(int ch)
                 cmd_input[cmd_input_len++] = (char)ch;
                 cmd_input[cmd_input_len] = '\0';
                 command_status_msg[0] = '\0'; // Clear errors when typing
+                show_help = 0;
             }
             break;
     }
@@ -1419,11 +1450,9 @@ void process_network_packet(TizcordPacket *packet) {
         case PACKET_CHANNEL:
             if (packet->payload.channel.action == CHANNEL_MESSAGE) {
                 ui_receive_channel_message(packet);
-            } else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
-                ui_edit_channel_message(packet);
-            } else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
-                ui_delete_channel_message(packet);
-            } else if (packet->payload.channel.action == CHANNEL_CREATE) {
+            } 
+             
+            else if (packet->payload.channel.action == CHANNEL_CREATE) {
                 if (packet->payload.channel.status_code == 0) {
                     // SUCCESS! Close the window.
                     command_status_msg[0] = '\0';
