@@ -60,8 +60,6 @@ typedef enum {
 
 typedef enum {
     DM_MESSAGE,
-    DM_MESSAGE_EDIT,
-    DM_MESSAGE_DELETE,
 } DMAction;
 
 typedef enum {
@@ -82,8 +80,6 @@ typedef enum {
     CHANNEL_DELETE, // admin only
     CHANNEL_JOIN,
     CHANNEL_MESSAGE,
-    CHANNEL_MESSAGE_EDIT,
-    CHANNEL_MESSAGE_DELETE, 
     CHANNEL_HISTORY_REQUEST,
 } ChannelAction;
 

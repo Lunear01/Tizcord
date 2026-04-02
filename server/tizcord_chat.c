@@ -107,34 +107,6 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         
         write(sender_fd, &reply, sizeof(TizcordPacket));
     }
-    else if (packet->payload.channel.action == CHANNEL_MESSAGE_EDIT) {
-        printf("[Chat] Edit channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
-        
-        if (ctx->db != NULL) {
-            db_edit_message(ctx->db, packet->payload.channel.message_id, packet->payload.channel.message);
-        }
-
-        // Broadcast the edit packet to everyone in the channel
-        channel_broadcast(ctx, 
-                          packet->payload.channel.channel_id, 
-                          (const char*)packet, 
-                          sizeof(TizcordPacket), 
-                          sender_fd);
-    } 
-    else if (packet->payload.channel.action == CHANNEL_MESSAGE_DELETE) {
-        printf("[Chat] Delete channel message requested for ID: %lld\n", (long long)packet->payload.channel.message_id);
-        
-        if (ctx->db != NULL) {
-            db_delete_message(ctx->db, packet->payload.channel.message_id);
-        }
-
-        // Broadcast the delete packet to everyone in the channel
-        channel_broadcast(ctx, 
-                          packet->payload.channel.channel_id, 
-                          (const char*)packet, 
-                          sizeof(TizcordPacket), 
-                          sender_fd);
-    }
     else if (packet->payload.channel.action == CHANNEL_HISTORY_REQUEST) {
         printf("[Chat] History request for Channel ID: %lld\n", (long long)packet->payload.channel.channel_id);
         
@@ -219,36 +191,6 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             strcpy(error_reply.payload.dm.message, "Error: User is offline or does not exist.");
             
             write(sender_fd, &error_reply, sizeof(TizcordPacket));
-        }
-    }
-    else if (packet->payload.dm.action == DM_MESSAGE_EDIT) {
-        printf("[Chat] Edit PACKET_DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
-        
-        if (ctx->db != NULL) {
-            db_edit_message(ctx->db, packet->payload.dm.message_id, packet->payload.dm.message);
-        }
-
-        // Forward edit packet to the receiver so their UI updates
-        for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
-                write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
-                break;
-            }
-        }
-    } 
-    else if (packet->payload.dm.action == DM_MESSAGE_DELETE) {
-        printf("[Chat] Delete PACKET_DM requested for message ID: %lld\n", (long long)packet->payload.dm.message_id);
-        
-        if (ctx->db != NULL) {
-            db_delete_message(ctx->db, packet->payload.dm.message_id);
-        }
-
-        // Forward delete packet to the receiver so their UI updates
-        for (int i = 0; i < ctx->client_count; i++) {
-            if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
-                write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
-                break;
-            }
         }
     }
 }

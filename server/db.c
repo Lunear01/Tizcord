@@ -171,45 +171,13 @@ int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const ch
     return 0; 
 }
 
-int db_edit_message(DbContext* db, int64_t message_id, const char* new_content) {
-    const char* sql = "UPDATE messages SET content = ? WHERE id = ?;";
-    sqlite3_stmt* stmt;
-    
-    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return db_err(db, "Failed to prepare message update");
-    }
+/* -------------- DIRECT MESSAGE OPERATIONS ------------------ */
+int db_save_direct_message(DbContext* db, int64_t sender_id, int64_t receiver_id, const char* content){
 
-    sqlite3_bind_text(stmt, 1, new_content, -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, message_id);
-
-    int rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc != SQLITE_DONE) {
-        return db_err(db, "Failed to execute message update");
-    }
-
-    return 0;
 }
 
-int db_delete_message(DbContext* db, int64_t message_id) {
-    const char* sql = "DELETE FROM messages WHERE id = ?;";
-    sqlite3_stmt* stmt;
-    
-    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return db_err(db, "Failed to prepare message delete");
-    }
+int db_list_direct_messages(DbContext* db, int64_t user_id, MessageCallback dm_cb, void* userdata){
 
-    sqlite3_bind_int64(stmt, 1, message_id);
-
-    int rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc != SQLITE_DONE) {
-        return db_err(db, "Failed to execute message delete");
-    }
-
-    return 0;
 }
 
 /* -------------- PACKET_SERVER OPERATIONS ------------------ */

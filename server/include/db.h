@@ -43,12 +43,11 @@ int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_
 int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_delete_channel(DbContext* db, int64_t channel_id);
 int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata);
-
-/* Messages */
 int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const char* content);
-int db_load_history(DbContext* db, int64_t channel_id, int limit, MessageCallback msg_cb, void* userdata);
-int db_edit_message(DbContext* db, int64_t message_id, const char* new_content);
-int db_delete_message(DbContext* db, int64_t message_id);
+
+/* Direct Messages */
+int db_save_direct_message(DbContext* db, int64_t sender_id, int64_t receiver_id, const char* content);
+int db_list_direct_messages(DbContext* db, int64_t user_id, MessageCallback dm_cb, void* userdata);
 
 /* Social */
 int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id);
