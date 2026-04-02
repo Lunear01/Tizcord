@@ -7,6 +7,7 @@
 // The network packet router
 void handle_auth_packet(ServerContext *ctx, int client_fd, TizcordPacket *packet);
 
+// Account
 void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet);
 void logout_account(ServerContext *ctx, int client_fd, TizcordPacket *packet);
 void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet);

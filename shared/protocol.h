@@ -45,7 +45,7 @@ typedef enum {
     LIST_FRAME_END 
 } ListFrameType;
 
-// --- Action Flags ---
+// Action Flags
 // These help the server know exactly what to do with the packet
 typedef enum {
     SYSTEM_PING,

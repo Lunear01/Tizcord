@@ -94,7 +94,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         // Inject the authoritative sender info before broadcasting
         if (sender_node != NULL) {
             packet->sender_id = sender_node->id;
-            // We use channel_name to safely transmit the sender's username to the UI
+            // Use channel_name to safely transmit the sender's username to the UI
             strncpy(packet->payload.channel.channel_name, sender_node->username, MAX_NAME_LEN - 1);
         }
         
@@ -103,7 +103,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                           packet->payload.channel.channel_id,
                           (const char*)packet, 
                           sizeof(TizcordPacket), 
-                          -1); // Changed to -1 so the sender also receives the broadcast!
+                          -1); // The sender also receives the broadcast
         
         if (ctx->db != NULL && sender_node != NULL) {
             db_save_message(ctx->db, 
@@ -122,7 +122,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         
         int is_admin = 0;
         
-        // ADMIN CHECK
+        // Admin check
         if (sender_node != NULL && ctx->db != NULL &&
             db_user_is_server_admin(ctx->db, packet->payload.channel.server_id, sender_node->id, &is_admin) == 0 && is_admin) {
             
@@ -136,6 +136,38 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
             }
         } else {
             reply.payload.channel.status_code = 401; // Unauthorized
+        }
+        write(sender_fd, &reply, sizeof(TizcordPacket));
+
+    }
+
+    else if (packet->payload.channel.action == CHANNEL_DELETE) {
+        int is_admin = 0;
+        int64_t server_id = 0;
+        
+        TizcordPacket reply = create_base_packet(PACKET_CHANNEL);
+        reply.payload.channel.action = CHANNEL_DELETE;
+        reply.payload.channel.channel_id = packet->payload.channel.channel_id;
+        
+        if (sender_node != NULL && ctx->db != NULL) {
+            
+            // Get the server ID this channel belongs to
+            if (db_get_channel_server_id(ctx->db, packet->payload.channel.channel_id, &server_id) == 0) {
+                
+                // Admine_check
+                if (db_user_is_server_admin(ctx->db, server_id, sender_node->id, &is_admin) == 0 && is_admin) {
+                    
+                    if (db_delete_channel(ctx->db, packet->payload.channel.channel_id) == 0) {
+                        reply.payload.channel.status_code = 0;
+                    } else {
+                        reply.payload.channel.status_code = -5;
+                    }
+                } else {
+                    reply.payload.channel.status_code = 401; // Unauthorized
+                }
+            } else {
+                reply.payload.channel.status_code = RESP_ERR_NOT_FOUND;
+            }
         }
         write(sender_fd, &reply, sizeof(TizcordPacket));
     }
@@ -190,7 +222,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
         
         int found = 0;
-        // 2. Find recipient by matching ID in the active client array
+        // Find recipient by matching ID in the active client array
         for (int i = 0; i < ctx->client_count; i++) {
             if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
                 

@@ -65,7 +65,9 @@ int send_login(const char *username, const char *password) {
 }
 
 void create_server(const char *server_name) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
     
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     
@@ -77,19 +79,21 @@ void create_server(const char *server_name) {
 }
 
 void leave_server(int server_id) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_LEAVE;
-    
-    // FIX: Assign the integer directly
     packet.payload.server.server_id = server_id; 
 
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
 void kick_server_member(int64_t server_id, int64_t target_user_id) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_KICK_MEMBER;
     packet.payload.server.server_id = server_id;
@@ -98,7 +102,9 @@ void kick_server_member(int64_t server_id, int64_t target_user_id) {
 }
 
 void create_channel(int server_id, const char *channel_name) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_CHANNEL);
     packet.payload.channel.action = CHANNEL_CREATE;
@@ -110,7 +116,10 @@ void create_channel(int server_id, const char *channel_name) {
 }
 
 void delete_server(int64_t server_id) {
-    if (client_socket < 0) return;
+    if (client_socket < 0) {
+        return;
+    }
+
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_DELETE;
     packet.payload.server.server_id = server_id;
@@ -118,7 +127,9 @@ void delete_server(int64_t server_id) {
 }
 
 void delete_channel(int64_t channel_id) { 
-    if (client_socket < 0) return;
+    if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_CHANNEL);
     packet.payload.channel.action = CHANNEL_DELETE;
@@ -128,7 +139,9 @@ void delete_channel(int64_t channel_id) {
 }
 
 void send_friend_request(const char *target_username) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_FRIEND_REQUEST;
@@ -140,7 +153,9 @@ void send_friend_request(const char *target_username) {
 }
 
 void accept_friend_request(const char *target_username) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_FRIEND_ACCEPT;
@@ -152,7 +167,9 @@ void accept_friend_request(const char *target_username) {
 }
 
 void unfriend(const char *target_username) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_FRIEND_REMOVE;
@@ -163,7 +180,9 @@ void unfriend(const char *target_username) {
 }
 
 void reject_friend_request(const char *target_username) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_FRIEND_REJECT;
@@ -174,7 +193,9 @@ void reject_friend_request(const char *target_username) {
 }
 
 void send_status_update(const char *status_text) {
-    if (client_socket < 0 || status_text == NULL) return;
+    if (client_socket < 0 || status_text == NULL) {
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_UPDATE_STATUS;
@@ -185,7 +206,9 @@ void send_status_update(const char *status_text) {
 }
 
 void list_joined_servers_request(void) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_LIST_JOINED;
@@ -195,7 +218,9 @@ void list_joined_servers_request(void) {
 }
 
 void request_friend_list(void) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_LIST_FRIENDS;
@@ -205,7 +230,9 @@ void request_friend_list(void) {
 }
 
 void request_user_list(void) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
 
     TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
     packet.payload.social.action = SOCIAL_LIST_USERS;
@@ -214,7 +241,10 @@ void request_user_list(void) {
 }
 
 void request_server_channels(int64_t server_id) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
+
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_LIST_CHANNELS;
     packet.payload.server.server_id = server_id;
@@ -222,7 +252,10 @@ void request_server_channels(int64_t server_id) {
 }
 
 void request_server_members(int64_t server_id) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
+
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_LIST_MEMBERS;
     packet.payload.server.server_id = server_id;
@@ -230,7 +263,10 @@ void request_server_members(int64_t server_id) {
 }
 
 void request_channel_history(int64_t channel_id) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
+
     TizcordPacket packet = create_base_packet(PACKET_CHANNEL);
     packet.payload.channel.action = CHANNEL_HISTORY_REQUEST;
     packet.payload.channel.channel_id = channel_id;
@@ -238,7 +274,9 @@ void request_channel_history(int64_t channel_id) {
 }
 
 void send_channel_message(int64_t channel_id, const char *message) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
     
     TizcordPacket packet = create_base_packet(PACKET_CHANNEL);
     packet.payload.channel.action = CHANNEL_MESSAGE;
@@ -251,14 +289,20 @@ void send_channel_message(int64_t channel_id, const char *message) {
 }
 
 void list_all_servers_request(void) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
+
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_LIST;
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
 void join_server(int64_t server_id) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
+    
     TizcordPacket packet = create_base_packet(PACKET_SERVER);
     packet.payload.server.action = SERVER_JOIN;
     packet.payload.server.server_id = server_id;
@@ -266,7 +310,9 @@ void join_server(int64_t server_id) {
 }
 
 void send_dm_message(int64_t recipient_id, const char *message) {
-    if (client_socket < 0) return;
+     if (client_socket < 0){
+        return;
+    }
     
     TizcordPacket packet = create_base_packet(PACKET_DM);
     packet.payload.dm.action = DM_MESSAGE;
