@@ -40,6 +40,10 @@ static void message_history_cb(int64_t msg_id, const char* username, const char*
 }
 
 static void direct_message_history_cb(int64_t msg_id, const char* sender_username, const char* receiver_username, const char* content, int64_t timestamp, void* userdata) {
+    (void)msg_id;
+    (void)sender_username;
+    (void)receiver_username;
+    
     MessageHistoryContext *ctx = (MessageHistoryContext *)userdata;
     TizcordPacket packet = create_base_packet(PACKET_DM);
     
@@ -203,7 +207,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
 }
 
 void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sender_fd) {
-    // 1. Find the sender to securely get their ID
+    // Find the sender to securely get their ID
     ClientNode *sender_node = NULL;
     for (int i = 0; i < ctx->client_count; i++) {
         if (ctx->clients[i].socket_fd == sender_fd) {
@@ -241,7 +245,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             printf("[Chat] Recipient ID %lld not found for PACKET_DM\n", (long long)packet->payload.dm.recipient_id);
         }
     }
-    else if (packet->payload.dm.action == CHANNEL_HISTORY_REQUEST) {
+    else if (packet->payload.dm.action == DM_HISTORY_REQUEST) {
         printf("[Chat] History request for DM with User ID: %d\n", packet->payload.dm.recipient_id);
         
         MessageHistoryContext cb_ctx = {

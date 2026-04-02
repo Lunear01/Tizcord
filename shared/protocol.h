@@ -61,6 +61,7 @@ typedef enum {
 
 typedef enum {
     DM_MESSAGE,
+    DM_HISTORY_REQUEST
 } DMAction;
 
 typedef enum {
