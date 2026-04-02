@@ -1,4 +1,5 @@
 #include <ncurses.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -109,6 +110,7 @@ char command_status_msg[128] = {0};
 typedef struct {
     int64_t id;
     char username[MAX_NAME_LEN];
+    char status[PROFILE_STATUS_LEN + 1];
     int is_online;
 } UIUser;
 
@@ -1347,6 +1349,33 @@ void handle_command_input(int ch)
                 } else {
                     strcpy(command_status_msg, "Error: You must join a server to delete its channels.");
                 }
+            } else if (strcmp(cmd_input, "/set_status") == 0 ||
+                       strncmp(cmd_input, "/set_status ", 12) == 0) {
+                should_close = 0;
+
+                const char *raw_status = cmd_input + 11;
+                while (*raw_status == ' ') {
+                    raw_status++;
+                }
+
+                size_t status_len = strlen(raw_status);
+                while (status_len > 0 && raw_status[status_len - 1] == ' ') {
+                    status_len--;
+                }
+
+                if (status_len == 0) {
+                    strcpy(command_status_msg, "Error: Status cannot be empty. Use /set_status <1-64 characters>.");
+                } else if (status_len > PROFILE_STATUS_LEN) {
+                    snprintf(command_status_msg, sizeof(command_status_msg),
+                             "Error: Status is %zu characters. Maximum is %d.",
+                             status_len, PROFILE_STATUS_LEN);
+                } else {
+                    char new_status[PROFILE_STATUS_LEN + 1];
+                    memcpy(new_status, raw_status, status_len);
+                    new_status[status_len] = '\0';
+                    send_status_update(new_status);
+                    strcpy(command_status_msg, "Updating status...");
+                }
             } else {
                 // Catch typos!
                 should_close = 0;
@@ -1455,6 +1484,9 @@ void process_network_packet(TizcordPacket *packet) {
                 } else if (packet->list_frame == LIST_FRAME_MIDDLE && all_user_count < MAX_ALL_USERS) {
                     all_users[all_user_count].id = packet->payload.social.target_user_id;
                     strncpy(all_users[all_user_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
+                    all_users[all_user_count].username[MAX_NAME_LEN - 1] = '\0';
+                    strncpy(all_users[all_user_count].status, packet->payload.social.target_status, PROFILE_STATUS_LEN);
+                    all_users[all_user_count].status[PROFILE_STATUS_LEN] = '\0';
                     all_users[all_user_count].is_online = packet->payload.social.status_code;
                     all_user_count++;
                 } else if (packet->list_frame == LIST_FRAME_END) {
@@ -1476,6 +1508,36 @@ void process_network_packet(TizcordPacket *packet) {
                             }
                         }
                     }
+                }
+            } else if (packet->payload.social.action == SOCIAL_UPDATE_STATUS) {
+                int is_own_status_update = current_user >= 0 &&
+                                           strcmp(packet->payload.social.target_username,
+                                                  users[current_user].username) == 0;
+
+                if (packet->payload.social.status_code == RESP_OK) {
+                    for (int i = 0; i < all_user_count; i++) {
+                        if (all_users[i].id == packet->payload.social.target_user_id) {
+                            strncpy(all_users[i].status, packet->payload.social.target_status, PROFILE_STATUS_LEN);
+                            all_users[i].status[PROFILE_STATUS_LEN] = '\0';
+                            all_users[i].is_online = (packet->payload.social.status == STATUS_ONLINE);
+                            break;
+                        }
+                    }
+
+                    if (is_own_status_update) {
+                        request_user_list();
+                        command_status_msg[0] = '\0';
+                    }
+
+                    if (is_own_status_update && current_screen == SCREEN_COMMAND) {
+                        cmd_input[0] = '\0';
+                        cmd_input_len = 0;
+                        current_screen = previous_screen;
+                    }
+                } else if (packet->payload.social.status_code == RESP_ERR_INVALID) {
+                    strcpy(command_status_msg, "Error: Status must be between 1 and 64 characters.");
+                } else {
+                    strcpy(command_status_msg, "Error: Failed to update your status.");
                 }
             }
             break;
@@ -1634,35 +1696,39 @@ void draw_users(int rows, int cols) {
 
     /* ── Column headers ── */
     attron(COLOR_PAIR(9) | A_BOLD);
-    mvprintw(4, 3, "%-3s  %-20s  %s", "#", "USERNAME", "STATUS");
+    mvprintw(4, 3, "%-10s  %-20s  %s", "ACTIVITY", "USERNAME", "STATUS");
     attroff(COLOR_PAIR(9) | A_BOLD);
 
     /* ── User rows ── */
     int row = 6;
     for (int i = 0; i < all_user_count && row < rows - 2; i++) {
+        const char *profile_status = all_users[i].status[0] != '\0' ? all_users[i].status : "-";
+        const char *activity = all_users[i].is_online ? "ONLINE" : "offline";
+        int status_width = cols - 39;
+
+        if (status_width < 1) {
+            status_width = 1;
+        }
+
         if (i == user_list_cursor) {
             attron(COLOR_PAIR(2) | A_BOLD);
             mvhline(row, 0, ' ', cols);
-        }
-
-        mvprintw(row, 3, "%-3d", i + 1);
-
-        if (i == user_list_cursor) {
-            mvprintw(row, 8, "%-20s", all_users[i].username);
+            mvprintw(row, 3, "%-10s  %-20.20s  %.*s",
+                     activity,
+                     all_users[i].username,
+                     status_width, profile_status);
             attroff(COLOR_PAIR(2) | A_BOLD);
         } else {
-            attron(COLOR_PAIR(1));
-            mvprintw(row, 8, "%-20s", all_users[i].username);
-            attroff(COLOR_PAIR(1));
-        }
+            attron(COLOR_PAIR(all_users[i].is_online ? 7 : 4) | A_BOLD);
+            mvprintw(row, 3, "%-10s", activity);
+            attroff(COLOR_PAIR(all_users[i].is_online ? 7 : 4) | A_BOLD);
 
-        if (all_users[i].is_online) {
-            attron(COLOR_PAIR(7) | A_BOLD);
-            mvprintw(row, 30, "* ONLINE");
-            attroff(COLOR_PAIR(7) | A_BOLD);
-        } else {
+            attron(COLOR_PAIR(1));
+            mvprintw(row, 15, "%-20.20s", all_users[i].username);
+            attroff(COLOR_PAIR(1));
+
             attron(COLOR_PAIR(4));
-            mvprintw(row, 30, "* offline");
+            mvprintw(row, 37, "%.*s", status_width, profile_status);
             attroff(COLOR_PAIR(4));
         }
 

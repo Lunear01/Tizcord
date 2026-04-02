@@ -14,6 +14,13 @@ typedef struct {
     int32_t list_id;
 } FriendRequestListContext;
 
+typedef struct {
+    ServerContext *srv_ctx;
+    int client_fd;
+    int32_t current_index;
+    int32_t list_id;
+} UserListContext;
+
 static void friend_request_cb(int64_t target_user_id, const char* username, int is_incoming, void *userdata) {
     FriendRequestListContext *ctx = (FriendRequestListContext *)userdata;
     if (!ctx) return;
@@ -30,6 +37,85 @@ static void friend_request_cb(int64_t target_user_id, const char* username, int 
     packet.payload.social.status_code = is_incoming;
 
     write(ctx->client_fd, &packet, sizeof(TizcordPacket));
+}
+
+static void user_list_cb(int64_t user_id, const char* username, const char* status_text, void* userdata) {
+    UserListContext *ctx = (UserListContext *)userdata;
+    if (!ctx) return;
+
+    int is_online = 0;
+    for (int i = 0; i < ctx->srv_ctx->client_count; i++) {
+        if (ctx->srv_ctx->clients[i].socket_fd > 0 &&
+            ctx->srv_ctx->clients[i].id == user_id &&
+            ctx->srv_ctx->clients[i].is_authenticated) {
+            is_online = 1;
+            break;
+        }
+    }
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_LIST_USERS;
+    packet.list_id = ctx->list_id;
+    packet.list_index = ctx->current_index++;
+    packet.list_total = -1;
+    packet.list_frame = LIST_FRAME_MIDDLE;
+    packet.payload.social.status = is_online ? STATUS_ONLINE : STATUS_OFFLINE;
+    packet.payload.social.target_user_id = user_id;
+    strncpy(packet.payload.social.target_username, username, MAX_NAME_LEN - 1);
+    packet.payload.social.target_username[MAX_NAME_LEN - 1] = '\0';
+    strncpy(packet.payload.social.target_status, status_text ? status_text : "", PROFILE_STATUS_LEN);
+    packet.payload.social.target_status[PROFILE_STATUS_LEN] = '\0';
+    packet.payload.social.status_code = is_online;
+
+    write(ctx->client_fd, &packet, sizeof(TizcordPacket));
+}
+
+static int client_is_online(ServerContext *ctx, int64_t user_id) {
+    if (!ctx) return 0;
+
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].socket_fd > 0 &&
+            ctx->clients[i].id == user_id &&
+            ctx->clients[i].is_authenticated) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void send_status_update_packet(int client_fd, int status_code, int64_t user_id,
+                                      const char *username, const char *status_text,
+                                      int is_online) {
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_UPDATE_STATUS;
+    packet.payload.social.status_code = status_code;
+    packet.payload.social.status = is_online ? STATUS_ONLINE : STATUS_OFFLINE;
+    packet.payload.social.target_user_id = user_id;
+
+    if (username != NULL) {
+        strncpy(packet.payload.social.target_username, username, MAX_NAME_LEN - 1);
+        packet.payload.social.target_username[MAX_NAME_LEN - 1] = '\0';
+    }
+
+    if (status_text != NULL) {
+        strncpy(packet.payload.social.target_status, status_text, PROFILE_STATUS_LEN);
+        packet.payload.social.target_status[PROFILE_STATUS_LEN] = '\0';
+    }
+
+    write(client_fd, &packet, sizeof(TizcordPacket));
+}
+
+static void notify_user_status_update(ServerContext *ctx, int64_t user_id,
+                                      const char *username, const char *status_text) {
+    int is_online = client_is_online(ctx, user_id);
+
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].is_authenticated) {
+            send_status_update_packet(ctx->clients[i].socket_fd, RESP_OK, user_id,
+                                      username, status_text, is_online);
+        }
+    }
 }
 
 // Send a refreshed friend list to a user if they are currently online
@@ -166,44 +252,6 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             break;
         }
         case SOCIAL_LIST_USERS: {
-            // We'll collect users from DB, then for each check online status
-            typedef struct {
-                ServerContext *srv_ctx;
-                int client_fd;
-                int32_t current_index;
-                int32_t list_id;
-            } UserListContext;
-
-            // Callback that checks online status and sends packet
-            void user_list_cb(int64_t user_id, const char* username, int unused, void* ud) {
-                (void)unused;
-                UserListContext *ulc = (UserListContext *)ud;
-                if (!ulc) return;
-
-                // Check if this user is currently connected
-                int is_online = 0;
-                for (int i = 0; i < ulc->srv_ctx->client_count; i++) {
-                    if (ulc->srv_ctx->clients[i].socket_fd > 0 &&
-                        ulc->srv_ctx->clients[i].id == user_id &&
-                        ulc->srv_ctx->clients[i].is_authenticated) {
-                        is_online = 1;
-                        break;
-                    }
-                }
-
-                TizcordPacket pkt = create_base_packet(PACKET_SOCIAL);
-                pkt.payload.social.action = SOCIAL_LIST_USERS;
-                pkt.list_id = ulc->list_id;
-                pkt.list_index = ulc->current_index++;
-                pkt.list_total = -1;
-                pkt.list_frame = LIST_FRAME_MIDDLE;
-                pkt.payload.social.target_user_id = user_id;
-                strncpy(pkt.payload.social.target_username, username, MAX_NAME_LEN - 1);
-                pkt.payload.social.status_code = is_online;
-
-                write(ulc->client_fd, &pkt, sizeof(TizcordPacket));
-            }
-
             UserListContext ulc = {
                 .srv_ctx = ctx,
                 .client_fd = client->socket_fd,
@@ -225,6 +273,25 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             end_pkt.list_total = ulc.current_index;
             end_pkt.list_frame = LIST_FRAME_END;
             write(client->socket_fd, &end_pkt, sizeof(TizcordPacket));
+            break;
+        }
+        case SOCIAL_UPDATE_STATUS: {
+            size_t status_len = strnlen(packet->payload.social.target_status, PROFILE_STATUS_LEN + 1);
+
+            if (status_len == 0 || status_len > PROFILE_STATUS_LEN) {
+                send_status_update_packet(client->socket_fd, RESP_ERR_INVALID, client->id,
+                                          client->username, NULL, 1);
+                return;
+            }
+
+            if (db_update_user_status(ctx->db, client->id, packet->payload.social.target_status) != 0) {
+                send_status_update_packet(client->socket_fd, RESP_ERR_DB, client->id,
+                                          client->username, NULL, 1);
+                return;
+            }
+
+            notify_user_status_update(ctx, client->id, client->username,
+                                      packet->payload.social.target_status);
             break;
         }
         default:

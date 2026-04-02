@@ -11,6 +11,7 @@
 #define PASSWORD_LEN 64
 #define MESSAGE_LEN 512
 #define SYSTEM_MESSAGE_LEN 256
+#define PROFILE_STATUS_LEN 64
 
 typedef enum {
     PACKET_AUTH,
@@ -144,6 +145,7 @@ typedef struct {
     int status_code;
     int64_t target_user_id; 
     char target_username[MAX_NAME_LEN]; 
+    char target_status[PROFILE_STATUS_LEN + 1];
 } SocialPayload;
 
 typedef struct {

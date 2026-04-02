@@ -173,6 +173,17 @@ void reject_friend_request(const char *target_username) {
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
+void send_status_update(const char *status_text) {
+    if (client_socket < 0 || status_text == NULL) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_UPDATE_STATUS;
+    strncpy(packet.payload.social.target_status, status_text, PROFILE_STATUS_LEN);
+    packet.payload.social.target_status[PROFILE_STATUS_LEN] = '\0';
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
 void list_joined_servers_request(void) {
     if (client_socket < 0) return;
 
@@ -265,4 +276,3 @@ void send_dm_message(int64_t recipient_id, const char *message) {
     
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
-

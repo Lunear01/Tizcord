@@ -785,10 +785,10 @@ int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_
     return (rc == SQLITE_ROW) ? 0 : -1;
 }
 
-int db_list_all_users(DbContext* db, MemberCallback user_cb, void* userdata) {
+int db_list_all_users(DbContext* db, UserListCallback user_cb, void* userdata) {
     if (!user_cb) return -1;
 
-    const char* sql = "SELECT id, username FROM users ORDER BY username ASC;";
+    const char* sql = "SELECT id, username, status FROM users ORDER BY username ASC;";
     sqlite3_stmt* stmt;
 
     if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
@@ -799,9 +799,35 @@ int db_list_all_users(DbContext* db, MemberCallback user_cb, void* userdata) {
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         int64_t user_id = sqlite3_column_int64(stmt, 0);
         const char* username = (const char*)sqlite3_column_text(stmt, 1);
-        user_cb(user_id, username ? username : "", 0, userdata);
+        const char* status = (const char*)sqlite3_column_text(stmt, 2);
+        user_cb(user_id, username ? username : "", status ? status : "", userdata);
     }
 
     sqlite3_finalize(stmt);
     return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+int db_update_user_status(DbContext* db, int64_t user_id, const char* status) {
+    const char* sql = "UPDATE users SET status = ? WHERE id = ?;";
+    sqlite3_stmt* stmt;
+
+    if (db == NULL || status == NULL) {
+        return -1;
+    }
+
+    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return db_err(db, "Failed to prepare user status update");
+    }
+
+    sqlite3_bind_text(stmt, 1, status, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, user_id);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return db_err(db, "Failed to execute user status update");
+    }
+
+    return sqlite3_changes(db->conn) > 0 ? 0 : -1;
 }
