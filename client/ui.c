@@ -1208,6 +1208,19 @@ void handle_command_input(int ch)
                     unfriend(target_username);
                     request_friend_list();
                 }
+            } else if (strncmp(cmd_input, "/reject ", 8) == 0) {
+                char target_username[MAX_NAME_LEN] = {0};
+                strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                    target_username[strlen(target_username) - 1] = '\0';
+                }
+                
+                if (strlen(target_username) > 0) {
+                    reject_friend_request(target_username);
+                    request_friend_list();
+                }
             } else if (strncmp(cmd_input, "/createserver ", 14) == 0) {
                 char server_name[MAX_NAME_LEN] = {0};
                 strncpy(server_name, cmd_input + 14, MAX_NAME_LEN - 1);

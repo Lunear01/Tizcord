@@ -20,6 +20,7 @@ void send_channel_message(int64_t channel_id, const char *message);
 void send_friend_request(const char *target_username);
 void accept_friend_request(const char *target_username);
 void unfriend(const char *target_username);
+void reject_friend_request(const char *target_username);
 void request_friend_list(void);
 void list_joined_servers_request(void);
 

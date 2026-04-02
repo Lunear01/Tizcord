@@ -32,6 +32,37 @@ static void friend_request_cb(int64_t target_user_id, const char* username, int 
     write(ctx->client_fd, &packet, sizeof(TizcordPacket));
 }
 
+// Send a refreshed friend list to a user if they are currently online
+static void notify_friend_list_update(ServerContext *ctx, int64_t target_user_id) {
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == target_user_id) {
+            int fd = ctx->clients[i].socket_fd;
+
+            FriendRequestListContext cb_ctx = {
+                .client_fd = fd,
+                .current_index = 0,
+                .list_id = (int32_t)target_user_id
+            };
+
+            TizcordPacket start_pkt = create_base_packet(PACKET_SOCIAL);
+            start_pkt.payload.social.action = SOCIAL_LIST_FRIENDS;
+            start_pkt.list_id = cb_ctx.list_id;
+            start_pkt.list_frame = LIST_FRAME_START;
+            write(fd, &start_pkt, sizeof(TizcordPacket));
+
+            db_list_friend_requests(ctx->db, target_user_id, friend_request_cb, &cb_ctx);
+
+            TizcordPacket end_pkt = create_base_packet(PACKET_SOCIAL);
+            end_pkt.payload.social.action = SOCIAL_LIST_FRIENDS;
+            end_pkt.list_id = cb_ctx.list_id;
+            end_pkt.list_total = cb_ctx.current_index;
+            end_pkt.list_frame = LIST_FRAME_END;
+            write(fd, &end_pkt, sizeof(TizcordPacket));
+            break;
+        }
+    }
+}
+
 void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket *packet) {
     if (!ctx || !client || !packet) return;
 
@@ -54,6 +85,7 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             }
 
             send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REQUEST, RESP_OK, "Friend request sent!");
+            notify_friend_list_update(ctx, friend_id);
             break;
         }
         case SOCIAL_FRIEND_ACCEPT: {
@@ -73,6 +105,7 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             }
 
             send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_ACCEPT, RESP_OK, "Friend request accepted!");
+            notify_friend_list_update(ctx, friend_id);
             break;
         }
         case SOCIAL_LIST_FRIENDS: {
@@ -112,6 +145,24 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             }
 
             send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REMOVE, RESP_OK, "Friend removed.");
+            notify_friend_list_update(ctx, friend_id);
+            break;
+        }
+        case SOCIAL_FRIEND_REJECT: {
+            int64_t friend_id = 0;
+            if (db_get_user_id_by_name(ctx->db, packet->payload.social.target_username, &friend_id) != 0) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REJECT, RESP_ERR_NOT_FOUND, "User not found.");
+                return;
+            }
+
+            int rc = db_reject_friend_request(ctx->db, client->id, friend_id);
+            if (rc == -1) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REJECT, RESP_ERR_NOT_FOUND, "No incoming request from this user.");
+                return;
+            }
+
+            send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REJECT, RESP_OK, "Friend request rejected.");
+            notify_friend_list_update(ctx, friend_id);
             break;
         }
         default:
