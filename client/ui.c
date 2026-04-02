@@ -832,7 +832,7 @@ void draw_chat(int rows, int cols)
         mvhline(r, main_x, ' ', main_w);
     attroff(COLOR_PAIR(1));
 
-    int msg_area = rows - 4; 
+    int msg_area = rows - 5; 
     int start = chan->msg_count > msg_area ? chan->msg_count - msg_area : 0;
     int body_col = main_x + 15;       
     int body_w = main_w - 16; 
@@ -1983,7 +1983,7 @@ void draw_dms(int rows, int cols) {
     mvprintw(0, main_x + 1, " @ %s", f->username);
     attroff(COLOR_PAIR(10) | A_BOLD);
 
-    int msg_area = rows - 4; 
+    int msg_area = rows - 5; 
     int start = f->msg_count > msg_area ? f->msg_count - msg_area : 0;
     
     // Draw messages
