@@ -474,6 +474,42 @@ int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id) {
 
 /* -------------- PACKET_SOCIAL OPERATIONS ------------------ */
 int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id) {
+    int same_direction_status = -1;
+    int reciprocal_status = -1;
+    const char* existing_sql =
+        "SELECT user_id, friend_id, is_accepted "
+        "FROM friends "
+        "WHERE (user_id = ? AND friend_id = ?) "
+        "   OR (user_id = ? AND friend_id = ?);";
+    sqlite3_stmt* existing_stmt;
+
+    if (sqlite3_prepare_v2(db->conn, existing_sql, -1, &existing_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(existing_stmt, 1, user_id);
+        sqlite3_bind_int64(existing_stmt, 2, friend_id);
+        sqlite3_bind_int64(existing_stmt, 3, friend_id);
+        sqlite3_bind_int64(existing_stmt, 4, user_id);
+
+        while (sqlite3_step(existing_stmt) == SQLITE_ROW) {
+            int64_t existing_user_id = sqlite3_column_int64(existing_stmt, 0);
+            int64_t existing_friend_id = sqlite3_column_int64(existing_stmt, 1);
+            int is_accepted = sqlite3_column_int(existing_stmt, 2);
+
+            if (existing_user_id == user_id && existing_friend_id == friend_id) {
+                same_direction_status = is_accepted;
+            } else if (existing_user_id == friend_id && existing_friend_id == user_id) {
+                reciprocal_status = is_accepted;
+            }
+        }
+        sqlite3_finalize(existing_stmt);
+    }
+
+    if (same_direction_status == 1 || reciprocal_status == 1) {
+        return -2;
+    }
+    if (reciprocal_status == 0) {
+        return db_accept_friend_request(db, user_id, friend_id) == 0 ? 1 : -1;
+    }
+
     const char* sql = "INSERT INTO friends (user_id, friend_id, is_accepted) VALUES (?, ?, 0);";
     sqlite3_stmt* stmt;
 
