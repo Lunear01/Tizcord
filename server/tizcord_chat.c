@@ -20,6 +20,15 @@ typedef struct {
     int64_t channel_id;
 } MessageHistoryContext;
 
+typedef struct {
+    int client_fd;
+    int32_t current_index;
+    int32_t list_id;
+    int64_t my_user_id;
+    int64_t friend_id;
+    char my_username[MAX_NAME_LEN];
+} DMHistoryContext;
+
 static void message_history_cb(int64_t msg_id, const char* username, const char* content, int64_t timestamp, void* userdata) {
     MessageHistoryContext *ctx = (MessageHistoryContext *)userdata;
     TizcordPacket packet = create_base_packet(PACKET_CHANNEL);
@@ -40,11 +49,9 @@ static void message_history_cb(int64_t msg_id, const char* username, const char*
 }
 
 static void direct_message_history_cb(int64_t msg_id, const char* sender_username, const char* receiver_username, const char* content, int64_t timestamp, void* userdata) {
-    (void)msg_id;
-    (void)sender_username;
-    (void)receiver_username;
-    
-    MessageHistoryContext *ctx = (MessageHistoryContext *)userdata;
+    (void)receiver_username; 
+
+    DMHistoryContext *ctx = (DMHistoryContext *)userdata;
     TizcordPacket packet = create_base_packet(PACKET_DM);
     
     packet.payload.dm.action = DM_MESSAGE;
@@ -52,9 +59,18 @@ static void direct_message_history_cb(int64_t msg_id, const char* sender_usernam
     packet.list_index = ctx->current_index++;
     packet.list_frame = LIST_FRAME_MIDDLE;
     
-    packet.payload.dm.recipient_id = 0; // Not used in history context
+    // Determine the sender ID by comparing the username from the DB 
+    // against the user requesting the history.
+    if (strcmp(sender_username, ctx->my_username) == 0) {
+        packet.sender_id = ctx->my_user_id; // I sent this message
+    } else {
+        packet.sender_id = ctx->friend_id;  // My friend sent this message
+    }
+    
+    packet.payload.dm.recipient_id = ctx->friend_id; // Always the context of the conversation
+    packet.payload.dm.message_id = msg_id;
     packet.timestamp = timestamp;
-
+    
     strncpy(packet.payload.dm.message, content, MESSAGE_LEN - 1);
     
     write(ctx->client_fd, &packet, sizeof(TizcordPacket));
@@ -221,6 +237,13 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         packet->sender_id = sender_node->id;
     }
 
+    if (ctx->db != NULL && sender_node != NULL) {
+            db_save_direct_message(ctx->db, 
+                                   sender_node->id, 
+                                   packet->payload.dm.recipient_id, 
+                                   packet->payload.dm.message);
+    }
+
     if (packet->payload.dm.action == DM_MESSAGE) {
         printf("[Chat] Routing PACKET_DM from %lld to %lld\n", 
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
@@ -245,33 +268,34 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             printf("[Chat] Recipient ID %lld not found for PACKET_DM\n", (long long)packet->payload.dm.recipient_id);
         }
     }
-    else if (packet->payload.dm.action == DM_HISTORY_REQUEST) {
-        printf("[Chat] History request for DM with User ID: %d\n", packet->payload.dm.recipient_id);
-        
-        MessageHistoryContext cb_ctx = {
-            .client_fd = sender_fd,
-            .current_index = 0,
-            .list_id = (int32_t)packet->payload.dm.recipient_id, // Use recipient ID as list ID for DMs
-            .channel_id = 0 // Not used for DMs
-        };
+        else if (packet->payload.dm.action == DM_HISTORY_REQUEST) {
+            if (sender_node == NULL || ctx->db == NULL) return;
+            
+            DMHistoryContext cb_ctx = {
+                .client_fd = sender_fd,
+                .current_index = 0,
+                .list_id = (int32_t)packet->payload.dm.recipient_id, 
+                .my_user_id = sender_node->id,
+                .friend_id = packet->payload.dm.recipient_id
+            };
+            // Copy the requesting user's name into the context
+            strncpy(cb_ctx.my_username, sender_node->username, MAX_NAME_LEN - 1);
 
-        // Send START frame
-        TizcordPacket start_pkt = create_base_packet(PACKET_DM);
-        start_pkt.payload.dm.action = DM_MESSAGE;
-        start_pkt.list_id = cb_ctx.list_id;
-        start_pkt.list_frame = LIST_FRAME_START;
-        write(sender_fd, &start_pkt, sizeof(TizcordPacket));
+            TizcordPacket start_pkt = create_base_packet(PACKET_DM);
+            start_pkt.payload.dm.action = DM_MESSAGE;
+            start_pkt.payload.dm.recipient_id = cb_ctx.friend_id;
+            start_pkt.list_id = cb_ctx.list_id;
+            start_pkt.list_frame = LIST_FRAME_START;
+            write(sender_fd, &start_pkt, sizeof(TizcordPacket));
 
-        // Stream the DM history
-        if (ctx->db != NULL) {
+            // Call the database function
             db_list_direct_messages(ctx->db, sender_node->id, packet->payload.dm.recipient_id, direct_message_history_cb, &cb_ctx);
-        }
 
-        // Send END frame
-        TizcordPacket end_pkt = create_base_packet(PACKET_DM);
-        end_pkt.payload.dm.action = DM_MESSAGE;
-        end_pkt.list_id = cb_ctx.list_id;
-        end_pkt.list_frame = LIST_FRAME_END;
-        write(sender_fd, &end_pkt, sizeof(TizcordPacket));
+            TizcordPacket end_pkt = create_base_packet(PACKET_DM);
+            end_pkt.payload.dm.action = DM_MESSAGE;
+            end_pkt.payload.dm.recipient_id = cb_ctx.friend_id;
+            end_pkt.list_id = cb_ctx.list_id;
+            end_pkt.list_frame = LIST_FRAME_END;
+            write(sender_fd, &end_pkt, sizeof(TizcordPacket));
     }
 }

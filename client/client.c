@@ -287,3 +287,13 @@ void send_dm_message(int64_t recipient_id, const char *message) {
     
     safe_send_packet(client_socket, &packet);
 }
+
+void request_dm_history(int64_t friend_id) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_DM);
+    packet.payload.dm.action = DM_HISTORY_REQUEST;
+    packet.payload.dm.recipient_id = (int)friend_id;
+    
+    safe_send_packet(client_socket, &packet);
+}
