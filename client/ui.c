@@ -11,8 +11,8 @@
 #include "../include/client.h"
 
 extern int client_socket;
-// ─── Constants ───────────────────────────────────────────────────────────────
 
+// Constants ───────────────────────────────────────────────────────────────
 #define MAX_USERS 16
 #define UI_MAX_SERVERS 8
 #define UI_MAX_CHANNELS 5
@@ -21,7 +21,7 @@ extern int client_socket;
 #define MAX_NAME_LEN 32
 #define MAX_PASS_LEN 32
 
-// ─── Screens ─────────────────────────────────────────────────────────────────
+// Screens ─────────────────────────────────────────────────────────────────
 
 typedef enum
 {
@@ -35,7 +35,7 @@ typedef enum
     SCREEN_USERS
 } Screen;
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// Data ────────────────────────────────────────────────────────────────────
 
 typedef struct
 {
@@ -73,7 +73,7 @@ typedef struct
     int channel_count;
 } UIServer;
 
-// ─── Global State ────────────────────────────────────────────────────────────
+// Global Variables ────────────────────────────────────────────────────────────
 
 User users[MAX_USERS];
 int user_count = 0;
@@ -120,15 +120,7 @@ UIUser all_users[MAX_ALL_USERS];
 int all_user_count = 0;
 int user_list_cursor = 0;
 
-// ─── Seed Data ───────────────────────────────────────────────────────────────
-
-void seed_data()
-{
-  user_count = 0;
-  server_count = 0; 
-}
-
-// ─── Color Pairs ─────────────────────────────────────────────────────────────
+//  Color Pairs ─────────────────────────────────────────────────────────────
 //  1 = normal text on default bg
 //  2 = white on blue  (topbar / active item)
 //  3 = white on dark  (sidebar)
@@ -156,7 +148,7 @@ void init_colors()
     init_pair(10, COLOR_WHITE, COLOR_BLUE);
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers ─────────────────────────────────────────────────────────────────
 
 /* Draw a box using ACS line-drawing characters.
    pair is the colour pair for the border only. */
@@ -194,7 +186,7 @@ void center_str(int row, const char *s, int pair, int attr)
     attroff(COLOR_PAIR(pair) | attr);
 }
 
-// ─── Screen: LOGIN / SIGNUP ──────────────────────────────────────────────────
+// Screen: LOGIN / SIGNUP ──────────────────────────────────────────────────
 
 typedef struct
 {
@@ -207,7 +199,7 @@ typedef struct
 
 AuthState auth = {"", "", 0, "", ""};
 
-/* ── Thick bitmap font for TIZCORD logo ────────────────────────────────────
+/* Thick bitmap font for TIZCORD logo ────────────────────────────────────
    Each glyph is GLYPH_H rows × GLYPH_W cols, stored MSB-left in a uint16_t.
    Rendered with full-block (█) and half-step (▓) chars for the double-border
    look: outer edge = '█', one-cell inset = '▓', interior = ' '.          */
@@ -508,10 +500,6 @@ void handle_auth_input(int ch, int is_signup)
             auth.error[0] = '\0';
             return; // Break out immediately, let the listener thread catch the reply
         }
-        auth.username[0] = '\0';
-        auth.password[0] = '\0';
-        auth.field = 0;
-        break;
     }
 
     case KEY_F(2):
@@ -532,9 +520,9 @@ void handle_auth_input(int ch, int is_signup)
 }
 
 
-// ─── Screen: PACKET_SERVER LIST ─────────────────────────────────────────────────────
+// Screen: PACKET_SERVER LIST ─────────────────────────────────────────────────────
 
-int server_cursor = 0; /* highlighted row */
+int server_cursor = 0; //highted row
 
 void draw_server_list(int rows, int cols)
 {
@@ -660,26 +648,6 @@ void handle_server_input(int ch)
         server_cursor = 0;
         current_screen = SCREEN_LOGIN;
         break;
-    case KEY_MOUSE:
-    {
-        MEVENT me;
-        if (getmouse(&me) == OK && me.bstate & BUTTON1_CLICKED)
-        {
-            for (int i = 0; i < server_count; i++)
-            {
-                if (me.y == 6 + i * 2)
-                {
-                    server_cursor = i;
-                    active_server = i;
-                    active_channel = 0;
-                    users[current_user].server_id = active_server;
-                    current_screen = SCREEN_CHAT;
-                    break;
-                }
-            }
-        }
-        break;
-    }
     case '`': // The backtick key
             current_screen = SCREEN_DMS;
             request_friend_list(); // Refresh the friend list so we have people to PACKET_DM
@@ -691,7 +659,7 @@ void handle_server_input(int ch)
     }
 }
 
-// ─── Screen: CHAT ────────────────────────────────────────────────────────────
+// Screen: CHAT ────────────────────────────────────────────────────────────
 
 char chat_input[MAX_MSG_LEN] = {0};
 int chat_input_len = 0;
@@ -934,7 +902,7 @@ void handle_chat_input(int ch)
     }
 }
 
-// ─── Network Integration (Thread-Safe Callbacks) ─────────────────────────────
+// Network Callback ─────────────────────────────
 
 void ui_handle_auth_response(TizcordPacket *packet) {
     if (packet->payload.auth.action == AUTH_REGISTER || packet->payload.auth.action == AUTH_LOGIN) {
@@ -983,11 +951,11 @@ void ui_receive_channel_message(TizcordPacket *packet) {
             if (c->msg_count < MAX_MESSAGES) {
                 Message *m = &c->messages[c->msg_count++];
                 
-                // Extract username from channel_name field (as repurposed in the backend)
+                // Extract username from channel_name field
                 if (strlen(packet->payload.channel.channel_name) > 0) {
                     strncpy(m->sender, packet->payload.channel.channel_name, MAX_NAME_LEN - 1);
                 } else {
-                    snprintf(m->sender, MAX_NAME_LEN, "%lld", (long long)packet->sender_id); // Fallback
+                    snprintf(m->sender, MAX_NAME_LEN, "%lld", (long long)packet->sender_id);
                 }
                 
                 strncpy(m->body, packet->payload.channel.message, MAX_MSG_LEN - 1);
@@ -1126,11 +1094,11 @@ void ui_update_server_state(TizcordPacket *packet) {
 }
 
 
-// ─── Screen: COMMAND LINE ────────────────────────────────────────────────────
+// Screen: COMMAND LINE ────────────────────────────────────────────────────
 
 void draw_command(int rows, int cols)
 {
-    erase(); // Ensures nothing is in the background
+    erase(); 
 
     int bw = 60; // Box width
     int bh = 3;  // Box height
@@ -1211,7 +1179,7 @@ void handle_command_input(int ch)
 
             if (strcmp(cmd_input, "/help") == 0) {
                 should_close = 0;  // Keep window open
-                show_help = 1;     // Trigger the help menu to draw
+                show_help = 1; // Trigger the help menu to draw
                 command_status_msg[0] = '\0';
             }
             
@@ -1228,7 +1196,9 @@ void handle_command_input(int ch)
                     send_friend_request(target_username);
                     request_friend_list();
                 }
-            } else if (strncmp(cmd_input, "/accept ", 8) == 0) {
+            } 
+            
+            else if (strncmp(cmd_input, "/accept ", 8) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
                 strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
                 
@@ -1241,7 +1211,9 @@ void handle_command_input(int ch)
                     accept_friend_request(target_username);
                     request_friend_list();
                 }
-            } else if (strncmp(cmd_input, "/unfriend ", 10) == 0) {
+            } 
+            
+            else if (strncmp(cmd_input, "/unfriend ", 10) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
                 strncpy(target_username, cmd_input + 10, MAX_NAME_LEN - 1);
                 
@@ -1254,7 +1226,9 @@ void handle_command_input(int ch)
                     unfriend(target_username);
                     request_friend_list();
                 }
-            } else if (strncmp(cmd_input, "/reject ", 8) == 0) {
+            } 
+            
+            else if (strncmp(cmd_input, "/reject ", 8) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
                 strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
                 
@@ -1267,7 +1241,9 @@ void handle_command_input(int ch)
                     reject_friend_request(target_username);
                     request_friend_list();
                 }
-            } else if (strncmp(cmd_input, "/createserver ", 14) == 0) {
+            } 
+            
+            else if (strncmp(cmd_input, "/createserver ", 14) == 0) {
                 char server_name[MAX_NAME_LEN] = {0};
                 strncpy(server_name, cmd_input + 14, MAX_NAME_LEN - 1);
                 
@@ -1279,12 +1255,16 @@ void handle_command_input(int ch)
                 if (strlen(server_name) > 0) {
                     create_server(server_name);
                 }
-            } else if (strncmp(cmd_input, "/kick ", 6) == 0) {
+            } 
+            
+            else if (strncmp(cmd_input, "/kick ", 6) == 0) {
                 should_close = 0; // Wait for server response
                 
                 if (previous_screen != SCREEN_CHAT) {
                     strcpy(command_status_msg, "Error: You must enter the server to kick members.");
-                } else if (active_server >= 0 && active_server < server_count) {
+                } 
+                
+                else if (active_server >= 0 && active_server < server_count) {
                     char target_username[MAX_NAME_LEN] = {0};
                     strncpy(target_username, cmd_input + 6, MAX_NAME_LEN - 1);
                     
@@ -1308,17 +1288,23 @@ void handle_command_input(int ch)
                         if (target_id != -1) {
                             kick_server_member(sv->id, target_id);
                             strcpy(command_status_msg, "Sending kick request...");
-                        } else {
+                        } 
+                        
+                        else {
                             strcpy(command_status_msg, "Error: User not found in server.");
                         }
                     }
                 } 
-            } else if (strncmp(cmd_input, "/createchannel ", 15) == 0) {
-                should_close = 0; // WAIT FOR SERVER RESPONSE
+            } 
+            
+            else if (strncmp(cmd_input, "/createchannel ", 15) == 0) {
+                should_close = 0; // Wait for server response
 
                 if (previous_screen != SCREEN_CHAT) {
                     strcpy(command_status_msg, "Error: You must enter the server to create channels.");
-                } else if (active_server >= 0 && active_server < server_count) {
+                } 
+                
+                else if (active_server >= 0 && active_server < server_count) {
                     char channel_name[MAX_NAME_LEN] = {0};
                     strncpy(channel_name, cmd_input + 15, MAX_NAME_LEN - 1);
                     
@@ -1329,12 +1315,16 @@ void handle_command_input(int ch)
                     if (strlen(channel_name) > 0) {
                         create_channel(servers[active_server].id, channel_name);
                         strcpy(command_status_msg, "Sending create request...");
-                    } else {
+                    } 
+                    
+                    else {
                         strcpy(command_status_msg, "Error: Channel name cannot be empty.");
                     }
                 }
-            } else if (strncmp(cmd_input, "/deleteserver ", 14) == 0) {
-                should_close = 0; // WAIT FOR SERVER RESPONSE
+            } 
+            
+            else if (strncmp(cmd_input, "/deleteserver ", 14) == 0) {
+                should_close = 0; // Wait for server response
                 char *target_name = cmd_input + 14; 
                 int64_t target_id = -1;
                 
@@ -1352,11 +1342,15 @@ void handle_command_input(int ch)
                     strcpy(command_status_msg, "Error: Server not found in your list.");
                 }
 
-            } else if (strncmp(cmd_input, "/deletechannel ", 15) == 0) {
+            } 
+            
+            else if (strncmp(cmd_input, "/deletechannel ", 15) == 0) {
                 should_close = 0;
                 if (previous_screen != SCREEN_CHAT) {
                     strcpy(command_status_msg, "Error: You must enter the server to delete channels.");
-                } else if (active_server >= 0 && active_server < server_count) {
+                } 
+                
+                else if (active_server >= 0 && active_server < server_count) {
                     char *target_name = cmd_input + 15;
                     int64_t target_id = -1;
                     UIServer *sv = &servers[active_server];
@@ -1371,13 +1365,19 @@ void handle_command_input(int ch)
                     if (target_id != -1) {
                         delete_channel(target_id); 
                         strcpy(command_status_msg, "Sending delete request...");
-                    } else {
+                    } 
+                    
+                    else {
                         strcpy(command_status_msg, "Error: Channel not found in this server.");
                     }
-                } else {
+                } 
+                
+                else {
                     strcpy(command_status_msg, "Error: You must join a server to delete its channels.");
                 }
-            } else if (strcmp(cmd_input, "/set_status") == 0 ||
+            } 
+            
+            else if (strcmp(cmd_input, "/set_status") == 0 ||
                        strncmp(cmd_input, "/set_status ", 12) == 0) {
                 should_close = 0;
 
@@ -1393,19 +1393,25 @@ void handle_command_input(int ch)
 
                 if (status_len == 0) {
                     strcpy(command_status_msg, "Error: Status cannot be empty. Use /set_status <1-64 characters>.");
-                } else if (status_len > PROFILE_STATUS_LEN) {
+                } 
+                
+                else if (status_len > PROFILE_STATUS_LEN) {
                     snprintf(command_status_msg, sizeof(command_status_msg),
                              "Error: Status is %zu characters. Maximum is %d.",
                              status_len, PROFILE_STATUS_LEN);
-                } else {
+                } 
+                
+                else {
                     char new_status[PROFILE_STATUS_LEN + 1];
                     memcpy(new_status, raw_status, status_len);
                     new_status[status_len] = '\0';
                     send_status_update(new_status);
                     strcpy(command_status_msg, "Updating status...");
                 }
-            } else {
-                // Catch typos!
+            } 
+            
+            else {
+                // Catch typos
                 should_close = 0;
                 strcpy(command_status_msg, "Error: Unknown command.");
             }
@@ -1442,7 +1448,7 @@ void handle_command_input(int ch)
     }
 }
 
-// ─── Main Network & UI Loop ──────────────────────────────────────────────────
+// Main Network & UI Loop ──────────────────────────────────────────────────
 
 // Process incoming network data
 void process_network_packet(TizcordPacket *packet) {
@@ -1453,8 +1459,9 @@ void process_network_packet(TizcordPacket *packet) {
             } 
              
             else if (packet->payload.channel.action == CHANNEL_CREATE) {
+                
                 if (packet->payload.channel.status_code == 0) {
-                    // SUCCESS! Close the window.
+                    // Close the window on success
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
                         cmd_input[0] = '\0';
@@ -1464,10 +1471,14 @@ void process_network_packet(TizcordPacket *packet) {
                     if (active_server >= 0) {
                         request_server_channels(servers[active_server].id);
                     }
-                } else {
+                } 
+                
+                else {
                     strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
                 }
-            } else if (packet->payload.channel.action == CHANNEL_DELETE) {
+            } 
+            
+            else if (packet->payload.channel.action == CHANNEL_DELETE) {
                 if (packet->payload.channel.status_code == 0) {
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
@@ -1479,7 +1490,9 @@ void process_network_packet(TizcordPacket *packet) {
                         active_channel = 0; 
                         request_server_channels(servers[active_server].id);
                     }
-                } else {
+                } 
+                
+                else {
                     strcpy(command_status_msg, "Permission Denied: You are not an admin of this server.");
                 }
             }
@@ -1500,17 +1513,23 @@ void process_network_packet(TizcordPacket *packet) {
                 if (packet->list_frame == LIST_FRAME_START) {
                     friend_count = 0;
                     friend_cursor = 0;
-                } else if (packet->list_frame == LIST_FRAME_MIDDLE && friend_count < MAX_FRIENDS) {
+                } 
+                
+                else if (packet->list_frame == LIST_FRAME_MIDDLE && friend_count < MAX_FRIENDS) {
                     ui_friends[friend_count].id = packet->payload.social.target_user_id;
                     strncpy(ui_friends[friend_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
                     ui_friends[friend_count].type = packet->payload.social.status_code;
                     friend_count++;
                 }
-            } else if (packet->payload.social.action == SOCIAL_LIST_USERS) {
+            } 
+            
+            else if (packet->payload.social.action == SOCIAL_LIST_USERS) {
                 if (packet->list_frame == LIST_FRAME_START) {
                     all_user_count = 0;
                     user_list_cursor = 0;
-                } else if (packet->list_frame == LIST_FRAME_MIDDLE && all_user_count < MAX_ALL_USERS) {
+                } 
+                
+                else if (packet->list_frame == LIST_FRAME_MIDDLE && all_user_count < MAX_ALL_USERS) {
                     all_users[all_user_count].id = packet->payload.social.target_user_id;
                     strncpy(all_users[all_user_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
                     all_users[all_user_count].username[MAX_NAME_LEN - 1] = '\0';
@@ -1518,14 +1537,19 @@ void process_network_packet(TizcordPacket *packet) {
                     all_users[all_user_count].status[PROFILE_STATUS_LEN] = '\0';
                     all_users[all_user_count].is_online = packet->payload.social.status_code;
                     all_user_count++;
-                } else if (packet->list_frame == LIST_FRAME_END) {
+                } 
+                
+                else if (packet->list_frame == LIST_FRAME_END) {
                     // Sort: online first, then alphabetical
                     for (int i = 0; i < all_user_count - 1; i++) {
                         for (int j = i + 1; j < all_user_count; j++) {
                             int swap = 0;
+
                             if (all_users[j].is_online > all_users[i].is_online) {
                                 swap = 1;
-                            } else if (all_users[j].is_online == all_users[i].is_online) {
+                            } 
+                            
+                            else if (all_users[j].is_online == all_users[i].is_online) {
                                 if (strcasecmp(all_users[j].username, all_users[i].username) < 0) {
                                     swap = 1;
                                 }
@@ -1538,7 +1562,9 @@ void process_network_packet(TizcordPacket *packet) {
                         }
                     }
                 }
-            } else if (packet->payload.social.action == SOCIAL_UPDATE_STATUS) {
+            } 
+            
+            else if (packet->payload.social.action == SOCIAL_UPDATE_STATUS) {
                 int is_own_status_update = current_user >= 0 &&
                                            strcmp(packet->payload.social.target_username,
                                                   users[current_user].username) == 0;
@@ -1563,9 +1589,13 @@ void process_network_packet(TizcordPacket *packet) {
                         cmd_input_len = 0;
                         current_screen = previous_screen;
                     }
-                } else if (packet->payload.social.status_code == RESP_ERR_INVALID) {
+                } 
+                
+                else if (packet->payload.social.status_code == RESP_ERR_INVALID) {
                     strcpy(command_status_msg, "Error: Status must be between 1 and 64 characters.");
-                } else {
+                } 
+                
+                else {
                     strcpy(command_status_msg, "Error: Failed to update your status.");
                 }
             }
@@ -1575,6 +1605,7 @@ void process_network_packet(TizcordPacket *packet) {
     }
 }
 
+// Draw the friends window ──────────────────────────────────────────────────
 void draw_friends(int rows, int cols) {
     erase();
     attron(COLOR_PAIR(10) | A_BOLD);
@@ -1593,7 +1624,7 @@ void draw_friends(int rows, int cols) {
 
     int current_y = 2;
     
-    // ─── Section 1: Accepted Friends ───
+    // Accepted Friends
     attron(COLOR_PAIR(4));
     mvprintw(current_y++, 3, "FRIENDS (%d)", total_friends);
     mvhline(current_y++, 0, ACS_HLINE, cols);
@@ -1611,7 +1642,9 @@ void draw_friends(int rows, int cols) {
                 mvhline(row, 0, ' ', cols);
                 mvprintw(row, 3, "%-3d  %-20s  %s", i + 1, ui_friends[i].username, "FRIEND");
                 attroff(COLOR_PAIR(2) | A_BOLD);
-            } else {
+            } 
+            
+            else {
                 attron(COLOR_PAIR(5) | A_BOLD);
                 mvprintw(row, 3, "%-3d", i + 1);
                 attroff(COLOR_PAIR(5) | A_BOLD);
@@ -1627,7 +1660,7 @@ void draw_friends(int rows, int cols) {
 
     current_y++; // spacer
 
-    // ─── Section 2: Pending Requests ───
+    // Pending Requests
     attron(COLOR_PAIR(4));
     mvprintw(current_y++, 3, "PENDING REQUESTS");
     mvhline(current_y++, 0, ACS_HLINE, cols);
@@ -1645,7 +1678,9 @@ void draw_friends(int rows, int cols) {
                 mvhline(row, 0, ' ', cols);
                 mvprintw(row, 3, "%-3d  %-20s  %s", i + 1, ui_friends[i].username, ui_friends[i].type == 1 ? "INCOMING" : "OUTGOING");
                 attroff(COLOR_PAIR(2) | A_BOLD);
-            } else {
+            } 
+            
+            else {
                 attron(COLOR_PAIR(5) | A_BOLD);
                 mvprintw(row, 3, "%-3d", i + 1);
                 attroff(COLOR_PAIR(5) | A_BOLD);
@@ -1747,7 +1782,9 @@ void draw_users(int rows, int cols) {
                      all_users[i].username,
                      status_width, profile_status);
             attroff(COLOR_PAIR(2) | A_BOLD);
-        } else {
+        } 
+        
+        else {
             attron(COLOR_PAIR(all_users[i].is_online ? 7 : 4) | A_BOLD);
             mvprintw(row, 3, "%-10s", activity);
             attroff(COLOR_PAIR(all_users[i].is_online ? 7 : 4) | A_BOLD);
@@ -1797,7 +1834,7 @@ void handle_users_input(int ch) {
             break;
     }
 }
-// Add this function to ui.c
+// Draw DM window ──────────────────────────────────────────────────
 void draw_dms(int rows, int cols) {
     erase();
     
@@ -1824,7 +1861,9 @@ void draw_dms(int rows, int cols) {
                 attron(COLOR_PAIR(2) | A_BOLD);
                 mvprintw(display_row++, 1, " @ %-15.15s", ui_friends[i].username);
                 attroff(COLOR_PAIR(2) | A_BOLD);
-            } else {
+            } 
+            
+            else {
                 attron(COLOR_PAIR(3));
                 mvprintw(display_row++, 1, " @ %-15.15s", ui_friends[i].username);
                 attroff(COLOR_PAIR(3));
@@ -1876,7 +1915,9 @@ void draw_dms(int rows, int cols) {
             attron(COLOR_PAIR(1));
             mvprintw(row, main_x + 15, "%.*s", main_w - 16, m->body);
             attroff(COLOR_PAIR(1));
-        } else {
+        } 
+        
+        else {
             // Outgoing message (Right aligned)
             int blen = strlen(m->body);
             int slen = strlen(m->sender);
@@ -1959,10 +2000,10 @@ void handle_dms_input(int ch) {
         case '\n':
         case KEY_ENTER:
             if (dm_input_len > 0) {
-                // 1. Send to server
+                // Send to server
                 send_dm_message(f->id, dm_input);
                 
-                // 2. Locally echo the message to our own screen
+                // Display the message to current screen
                 if (f->msg_count < MAX_MESSAGES) {
                     Message *m = &f->messages[f->msg_count++];
                     strncpy(m->sender, users[current_user].username, MAX_NAME_LEN - 1);
@@ -1991,8 +2032,6 @@ void handle_dms_input(int ch) {
 
 void start_ui(void)
 {
-    seed_data();
-
     initscr();
     cbreak();
     noecho();
@@ -2001,12 +2040,11 @@ void start_ui(void)
     curs_set(1);
     init_colors();
 
-    // Make getch() non-blocking so we can drain it cleanly after select() wakes up
     nodelay(stdscr, TRUE); 
 
     int rows, cols, ch;
 
-    // --- INITIAL DRAW ---
+    // Draw all screens init
     getmaxyx(stdscr, rows, cols);
     switch (current_screen)
     {
@@ -2059,7 +2097,6 @@ void start_ui(void)
         }
 
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
-            // Drain all available keys since getch() is non-blocking
             while ((ch = getch()) != ERR) {
                 if (ch == 'q' && current_screen == SCREEN_CHAT) {
                     goto exit_ui_loop; // Break out of nested loops cleanly

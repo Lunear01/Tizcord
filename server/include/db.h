@@ -16,7 +16,7 @@ typedef void (*FriendCallback)(int64_t friend_id, const char* username, void* us
 typedef void (*FriendRequestCallback)(int64_t target_user_id, const char* username, int is_incoming, void* userdata);
 typedef void (*UserListCallback)(int64_t user_id, const char* username, const char* status, void* userdata);
 
-/* Database connection */
+// Database connection
 DbContext* db_connect(const char* conninfo);
 void db_disconnect(DbContext* db);
 
@@ -25,7 +25,7 @@ int db_create_user(DbContext* db, const char* username, const char* password_has
 int db_get_password_hash(DbContext* db, const char* username, char* hash_out, int64_t* user_id_out);
 int db_get_user_id_by_name(DbContext* db, const char* username, int64_t* user_id_out);
 
-/* Server */
+// Server
 int db_user_is_server_admin(DbContext* db, int64_t server_id, int64_t user_id, int* is_admin_out);
 int db_get_server_id(DbContext* db, const char* name, int64_t* server_id_out);
 int db_create_server(DbContext* db, const char* name, int64_t user_id);
@@ -39,7 +39,7 @@ int db_list_server_members(DbContext* db, int64_t server_id, MemberCallback memb
 int db_list_joined_servers(DbContext* db, int64_t user_id, ServerCallback server_cb, void* userdata);
 int db_kick_server_member(DbContext* db, int64_t server_id, int64_t user_id);
 
-/* Channel */
+// Channel 
 int db_create_channel(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_get_channel_id(DbContext* db, int64_t server_id, const char* name, int64_t* channel_id_out);
 int db_get_channel_server_id(DbContext* db, int64_t channel_id, int64_t* server_id_out);
@@ -47,11 +47,11 @@ int db_delete_channel(DbContext* db, int64_t channel_id);
 int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata);
 int db_save_message(DbContext* db, int64_t channel_id, int64_t user_id, const char* content);
 
-/* Direct Messages */
+// Direct Messages 
 int db_save_direct_message(DbContext* db, int64_t sender_id, int64_t receiver_id, const char* content);
 int db_list_direct_messages(DbContext* db, int64_t user_id, MessageCallback dm_cb, void* userdata);
 
-/* Social */
+// Social 
 int db_send_friend_request(DbContext* db, int64_t user_id, int64_t friend_id);
 int db_accept_friend_request(DbContext* db, int64_t requester_id, int64_t accepter_id);
 int db_reject_friend_request(DbContext* db, int64_t requester_id, int64_t rejecter_id);
