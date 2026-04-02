@@ -1180,6 +1180,7 @@ void handle_command_input(int ch)
                 
                 if (strlen(target_username) > 0) {
                     send_friend_request(target_username);
+                    request_friend_list();
                 }
             } else if (strncmp(cmd_input, "/accept ", 8) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
@@ -1192,6 +1193,20 @@ void handle_command_input(int ch)
                 
                 if (strlen(target_username) > 0) {
                     accept_friend_request(target_username);
+                    request_friend_list();
+                }
+            } else if (strncmp(cmd_input, "/unfriend ", 10) == 0) {
+                char target_username[MAX_NAME_LEN] = {0};
+                strncpy(target_username, cmd_input + 10, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                    target_username[strlen(target_username) - 1] = '\0';
+                }
+                
+                if (strlen(target_username) > 0) {
+                    unfriend(target_username);
+                    request_friend_list();
                 }
             } else if (strncmp(cmd_input, "/createserver ", 14) == 0) {
                 char server_name[MAX_NAME_LEN] = {0};

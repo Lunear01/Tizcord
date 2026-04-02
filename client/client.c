@@ -151,6 +151,17 @@ void accept_friend_request(const char *target_username) {
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
+void unfriend(const char *target_username) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_FRIEND_REMOVE;
+    strncpy(packet.payload.social.target_username, target_username, sizeof(packet.payload.social.target_username) - 1);
+    packet.payload.social.target_username[sizeof(packet.payload.social.target_username) - 1] = '\0';
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
 void list_joined_servers_request(void) {
     if (client_socket < 0) return;
 

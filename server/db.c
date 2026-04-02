@@ -569,6 +569,43 @@ int db_accept_friend_request(DbContext* db, int64_t my_user_id, int64_t friend_i
     return 0;
 }
 
+int db_remove_friendship(DbContext* db, int64_t user_id, int64_t friend_id) {
+    // Check if they are actually friends (is_accepted = 1) in either direction
+    const char* check_sql =
+        "SELECT id FROM friends WHERE is_accepted = 1 AND "
+        "((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?));";
+    sqlite3_stmt* check_stmt;
+    int found = 0;
+
+    if (sqlite3_prepare_v2(db->conn, check_sql, -1, &check_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(check_stmt, 1, user_id);
+        sqlite3_bind_int64(check_stmt, 2, friend_id);
+        sqlite3_bind_int64(check_stmt, 3, friend_id);
+        sqlite3_bind_int64(check_stmt, 4, user_id);
+        if (sqlite3_step(check_stmt) == SQLITE_ROW) {
+            found = 1;
+        }
+        sqlite3_finalize(check_stmt);
+    }
+
+    if (!found) return -1; // Not friends
+
+    const char* del_sql =
+        "DELETE FROM friends WHERE "
+        "((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?));";
+    sqlite3_stmt* del_stmt;
+    if (sqlite3_prepare_v2(db->conn, del_sql, -1, &del_stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(del_stmt, 1, user_id);
+        sqlite3_bind_int64(del_stmt, 2, friend_id);
+        sqlite3_bind_int64(del_stmt, 3, friend_id);
+        sqlite3_bind_int64(del_stmt, 4, user_id);
+        sqlite3_step(del_stmt);
+        sqlite3_finalize(del_stmt);
+    }
+
+    return 0;
+}
+
 int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallback req_cb, void* userdata) {
     if (!req_cb) return -1;
 

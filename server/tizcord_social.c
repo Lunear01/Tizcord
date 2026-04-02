@@ -98,6 +98,22 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             write(client->socket_fd, &end_pkt, sizeof(TizcordPacket));
             break;
         }
+        case SOCIAL_FRIEND_REMOVE: {
+            int64_t friend_id = 0;
+            if (db_get_user_id_by_name(ctx->db, packet->payload.social.target_username, &friend_id) != 0) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REMOVE, RESP_ERR_NOT_FOUND, "User not found.");
+                return;
+            }
+
+            int rc = db_remove_friendship(ctx->db, client->id, friend_id);
+            if (rc == -1) {
+                send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REMOVE, RESP_ERR_NOT_FOUND, "You are not friends with this user.");
+                return;
+            }
+
+            send_action_response(client->socket_fd, PACKET_SOCIAL, SOCIAL_FRIEND_REMOVE, RESP_OK, "Friend removed.");
+            break;
+        }
         default:
             send_action_response(client->socket_fd, PACKET_SOCIAL, packet->payload.social.action, RESP_ERR_INVALID, "Invalid action.");
             break;
