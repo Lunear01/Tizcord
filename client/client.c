@@ -151,6 +151,39 @@ void accept_friend_request(const char *target_username) {
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
+void unfriend(const char *target_username) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_FRIEND_REMOVE;
+    strncpy(packet.payload.social.target_username, target_username, sizeof(packet.payload.social.target_username) - 1);
+    packet.payload.social.target_username[sizeof(packet.payload.social.target_username) - 1] = '\0';
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void reject_friend_request(const char *target_username) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_FRIEND_REJECT;
+    strncpy(packet.payload.social.target_username, target_username, sizeof(packet.payload.social.target_username) - 1);
+    packet.payload.social.target_username[sizeof(packet.payload.social.target_username) - 1] = '\0';
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void send_status_update(const char *status_text) {
+    if (client_socket < 0 || status_text == NULL) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_UPDATE_STATUS;
+    strncpy(packet.payload.social.target_status, status_text, PROFILE_STATUS_LEN);
+    packet.payload.social.target_status[PROFILE_STATUS_LEN] = '\0';
+
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
 void list_joined_servers_request(void) {
     if (client_socket < 0) return;
 
@@ -168,6 +201,15 @@ void request_friend_list(void) {
     packet.payload.social.action = SOCIAL_LIST_FRIENDS;
 
     // printf("[Client] Refreshing friend list...\n");
+    write(client_socket, &packet, sizeof(TizcordPacket));
+}
+
+void request_user_list(void) {
+    if (client_socket < 0) return;
+
+    TizcordPacket packet = create_base_packet(PACKET_SOCIAL);
+    packet.payload.social.action = SOCIAL_LIST_USERS;
+
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
 
@@ -234,4 +276,3 @@ void send_dm_message(int64_t recipient_id, const char *message) {
     
     write(client_socket, &packet, sizeof(TizcordPacket));
 }
-

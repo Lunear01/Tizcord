@@ -1,4 +1,5 @@
 #include <ncurses.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -30,7 +31,8 @@ typedef enum
     SCREEN_FRIENDS,
     SCREEN_CHAT,
     SCREEN_COMMAND,
-    SCREEN_DMS
+    SCREEN_DMS,
+    SCREEN_USERS
 } Screen;
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -104,6 +106,18 @@ Screen previous_screen = SCREEN_LOGIN;
 char cmd_input[MAX_MSG_LEN] = {0};
 int cmd_input_len = 0;
 char command_status_msg[128] = {0};
+
+typedef struct {
+    int64_t id;
+    char username[MAX_NAME_LEN];
+    char status[PROFILE_STATUS_LEN + 1];
+    int is_online;
+} UIUser;
+
+#define MAX_ALL_USERS 128
+UIUser all_users[MAX_ALL_USERS];
+int all_user_count = 0;
+int user_list_cursor = 0;
 
 // ─── Seed Data ───────────────────────────────────────────────────────────────
 
@@ -595,7 +609,7 @@ void draw_server_list(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  TAB: Friends  /: Command `:DMs");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  TAB: Friends  \\: Users  /: Command `:DMs");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -668,6 +682,10 @@ void handle_server_input(int ch)
     case '`': // The backtick key
             current_screen = SCREEN_DMS;
             request_friend_list(); // Refresh the friend list so we have people to PACKET_DM
+            break;
+    case '\\': // Backslash key
+            current_screen = SCREEN_USERS;
+            request_user_list();
             break;
     }
 }
@@ -1180,6 +1198,7 @@ void handle_command_input(int ch)
                 
                 if (strlen(target_username) > 0) {
                     send_friend_request(target_username);
+                    request_friend_list();
                 }
             } else if (strncmp(cmd_input, "/accept ", 8) == 0) {
                 char target_username[MAX_NAME_LEN] = {0};
@@ -1192,6 +1211,33 @@ void handle_command_input(int ch)
                 
                 if (strlen(target_username) > 0) {
                     accept_friend_request(target_username);
+                    request_friend_list();
+                }
+            } else if (strncmp(cmd_input, "/unfriend ", 10) == 0) {
+                char target_username[MAX_NAME_LEN] = {0};
+                strncpy(target_username, cmd_input + 10, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                    target_username[strlen(target_username) - 1] = '\0';
+                }
+                
+                if (strlen(target_username) > 0) {
+                    unfriend(target_username);
+                    request_friend_list();
+                }
+            } else if (strncmp(cmd_input, "/reject ", 8) == 0) {
+                char target_username[MAX_NAME_LEN] = {0};
+                strncpy(target_username, cmd_input + 8, MAX_NAME_LEN - 1);
+                
+                // Strip trailing spaces if any
+                while (strlen(target_username) > 0 && target_username[strlen(target_username) - 1] == ' ') {
+                    target_username[strlen(target_username) - 1] = '\0';
+                }
+                
+                if (strlen(target_username) > 0) {
+                    reject_friend_request(target_username);
+                    request_friend_list();
                 }
             } else if (strncmp(cmd_input, "/createserver ", 14) == 0) {
                 char server_name[MAX_NAME_LEN] = {0};
@@ -1303,6 +1349,33 @@ void handle_command_input(int ch)
                 } else {
                     strcpy(command_status_msg, "Error: You must join a server to delete its channels.");
                 }
+            } else if (strcmp(cmd_input, "/set_status") == 0 ||
+                       strncmp(cmd_input, "/set_status ", 12) == 0) {
+                should_close = 0;
+
+                const char *raw_status = cmd_input + 11;
+                while (*raw_status == ' ') {
+                    raw_status++;
+                }
+
+                size_t status_len = strlen(raw_status);
+                while (status_len > 0 && raw_status[status_len - 1] == ' ') {
+                    status_len--;
+                }
+
+                if (status_len == 0) {
+                    strcpy(command_status_msg, "Error: Status cannot be empty. Use /set_status <1-64 characters>.");
+                } else if (status_len > PROFILE_STATUS_LEN) {
+                    snprintf(command_status_msg, sizeof(command_status_msg),
+                             "Error: Status is %zu characters. Maximum is %d.",
+                             status_len, PROFILE_STATUS_LEN);
+                } else {
+                    char new_status[PROFILE_STATUS_LEN + 1];
+                    memcpy(new_status, raw_status, status_len);
+                    new_status[status_len] = '\0';
+                    send_status_update(new_status);
+                    strcpy(command_status_msg, "Updating status...");
+                }
             } else {
                 // Catch typos!
                 should_close = 0;
@@ -1404,6 +1477,68 @@ void process_network_packet(TizcordPacket *packet) {
                     ui_friends[friend_count].type = packet->payload.social.status_code;
                     friend_count++;
                 }
+            } else if (packet->payload.social.action == SOCIAL_LIST_USERS) {
+                if (packet->list_frame == LIST_FRAME_START) {
+                    all_user_count = 0;
+                    user_list_cursor = 0;
+                } else if (packet->list_frame == LIST_FRAME_MIDDLE && all_user_count < MAX_ALL_USERS) {
+                    all_users[all_user_count].id = packet->payload.social.target_user_id;
+                    strncpy(all_users[all_user_count].username, packet->payload.social.target_username, MAX_NAME_LEN - 1);
+                    all_users[all_user_count].username[MAX_NAME_LEN - 1] = '\0';
+                    strncpy(all_users[all_user_count].status, packet->payload.social.target_status, PROFILE_STATUS_LEN);
+                    all_users[all_user_count].status[PROFILE_STATUS_LEN] = '\0';
+                    all_users[all_user_count].is_online = packet->payload.social.status_code;
+                    all_user_count++;
+                } else if (packet->list_frame == LIST_FRAME_END) {
+                    // Sort: online first, then alphabetical
+                    for (int i = 0; i < all_user_count - 1; i++) {
+                        for (int j = i + 1; j < all_user_count; j++) {
+                            int swap = 0;
+                            if (all_users[j].is_online > all_users[i].is_online) {
+                                swap = 1;
+                            } else if (all_users[j].is_online == all_users[i].is_online) {
+                                if (strcasecmp(all_users[j].username, all_users[i].username) < 0) {
+                                    swap = 1;
+                                }
+                            }
+                            if (swap) {
+                                UIUser tmp = all_users[i];
+                                all_users[i] = all_users[j];
+                                all_users[j] = tmp;
+                            }
+                        }
+                    }
+                }
+            } else if (packet->payload.social.action == SOCIAL_UPDATE_STATUS) {
+                int is_own_status_update = current_user >= 0 &&
+                                           strcmp(packet->payload.social.target_username,
+                                                  users[current_user].username) == 0;
+
+                if (packet->payload.social.status_code == RESP_OK) {
+                    for (int i = 0; i < all_user_count; i++) {
+                        if (all_users[i].id == packet->payload.social.target_user_id) {
+                            strncpy(all_users[i].status, packet->payload.social.target_status, PROFILE_STATUS_LEN);
+                            all_users[i].status[PROFILE_STATUS_LEN] = '\0';
+                            all_users[i].is_online = (packet->payload.social.status == STATUS_ONLINE);
+                            break;
+                        }
+                    }
+
+                    if (is_own_status_update) {
+                        request_user_list();
+                        command_status_msg[0] = '\0';
+                    }
+
+                    if (is_own_status_update && current_screen == SCREEN_COMMAND) {
+                        cmd_input[0] = '\0';
+                        cmd_input_len = 0;
+                        current_screen = previous_screen;
+                    }
+                } else if (packet->payload.social.status_code == RESP_ERR_INVALID) {
+                    strcpy(command_status_msg, "Error: Status must be between 1 and 64 characters.");
+                } else {
+                    strcpy(command_status_msg, "Error: Failed to update your status.");
+                }
             }
             break;
         default:
@@ -1498,7 +1633,7 @@ void draw_friends(int rows, int cols) {
 
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ESC: logout  TAB: Servers  /: Command");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ESC: logout  TAB: Servers  \\: Users  /: Command");
     attroff(COLOR_PAIR(3));
     refresh();
 }
@@ -1520,6 +1655,111 @@ void handle_friends_input(int ch) {
             break;
         case KEY_DOWN:
             if (friend_cursor < friend_count - 1) friend_cursor++;
+            break;
+        case 27:
+            current_user = -1;
+            active_server = -1;
+            current_screen = SCREEN_LOGIN;
+            break;
+        case '\\':
+            current_screen = SCREEN_USERS;
+            request_user_list();
+            break;
+    }
+}
+
+void draw_users(int rows, int cols) {
+    erase();
+
+    /* ── Top bar ── */
+    attron(COLOR_PAIR(10) | A_BOLD);
+    mvhline(0, 0, ' ', cols);
+    mvprintw(0, 2, " ALL USERS");
+    if (current_user >= 0) {
+        const char *uname = users[current_user].username;
+        mvprintw(0, cols - (int)strlen(uname) - 3, "[%s]", uname);
+    }
+    attroff(COLOR_PAIR(10) | A_BOLD);
+
+    /* ── Count online ── */
+    int online_count = 0;
+    for (int i = 0; i < all_user_count; i++) {
+        if (all_users[i].is_online) online_count++;
+    }
+
+    attron(COLOR_PAIR(7) | A_BOLD);
+    mvprintw(2, 3, "ONLINE (%d)", online_count);
+    attroff(COLOR_PAIR(7) | A_BOLD);
+    attron(COLOR_PAIR(6));
+    mvhline(3, 0, ACS_HLINE, cols);
+    attroff(COLOR_PAIR(6));
+
+    /* ── Column headers ── */
+    attron(COLOR_PAIR(9) | A_BOLD);
+    mvprintw(4, 3, "%-10s  %-20s  %s", "ACTIVITY", "USERNAME", "STATUS");
+    attroff(COLOR_PAIR(9) | A_BOLD);
+
+    /* ── User rows ── */
+    int row = 6;
+    for (int i = 0; i < all_user_count && row < rows - 2; i++) {
+        const char *profile_status = all_users[i].status[0] != '\0' ? all_users[i].status : "-";
+        const char *activity = all_users[i].is_online ? "ONLINE" : "offline";
+        int status_width = cols - 39;
+
+        if (status_width < 1) {
+            status_width = 1;
+        }
+
+        if (i == user_list_cursor) {
+            attron(COLOR_PAIR(2) | A_BOLD);
+            mvhline(row, 0, ' ', cols);
+            mvprintw(row, 3, "%-10s  %-20.20s  %.*s",
+                     activity,
+                     all_users[i].username,
+                     status_width, profile_status);
+            attroff(COLOR_PAIR(2) | A_BOLD);
+        } else {
+            attron(COLOR_PAIR(all_users[i].is_online ? 7 : 4) | A_BOLD);
+            mvprintw(row, 3, "%-10s", activity);
+            attroff(COLOR_PAIR(all_users[i].is_online ? 7 : 4) | A_BOLD);
+
+            attron(COLOR_PAIR(1));
+            mvprintw(row, 15, "%-20.20s", all_users[i].username);
+            attroff(COLOR_PAIR(1));
+
+            attron(COLOR_PAIR(4));
+            mvprintw(row, 37, "%.*s", status_width, profile_status);
+            attroff(COLOR_PAIR(4));
+        }
+
+        row++;
+    }
+
+    /* ── Status bar ── */
+    attron(COLOR_PAIR(3));
+    mvhline(rows - 1, 0, ' ', cols);
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ESC: logout  TAB: Servers  /: Command");
+    attroff(COLOR_PAIR(3));
+    refresh();
+}
+
+void handle_users_input(int ch) {
+    switch (ch) {
+        case '\t':
+            current_screen = SCREEN_SERVERS;
+            list_all_servers_request();
+            break;
+        case '/':
+            previous_screen = current_screen;
+            current_screen = SCREEN_COMMAND;
+            cmd_input[0] = '/';
+            cmd_input_len = 1;
+            break;
+        case KEY_UP:
+            if (user_list_cursor > 0) user_list_cursor--;
+            break;
+        case KEY_DOWN:
+            if (user_list_cursor < all_user_count - 1) user_list_cursor++;
             break;
         case 27:
             current_user = -1;
@@ -1748,6 +1988,7 @@ void start_ui(void)
         case SCREEN_CHAT: draw_chat(rows, cols); break;
         case SCREEN_COMMAND: draw_command(rows, cols); break;
         case SCREEN_DMS: draw_dms(rows, cols); break;
+        case SCREEN_USERS: draw_users(rows, cols); break;
     }
 
     while (1)
@@ -1807,6 +2048,7 @@ void start_ui(void)
                     case SCREEN_CHAT: handle_chat_input(ch); break;
                     case SCREEN_COMMAND: handle_command_input(ch); break;
                     case SCREEN_DMS: handle_dms_input(ch); break;
+                    case SCREEN_USERS: handle_users_input(ch); break;
                 }
                 needs_redraw = 1;
             }
@@ -1823,6 +2065,7 @@ void start_ui(void)
                 case SCREEN_CHAT: draw_chat(rows, cols); break;
                 case SCREEN_COMMAND: draw_command(rows, cols); break;
                 case SCREEN_DMS: draw_dms(rows, cols); break;
+                case SCREEN_USERS: draw_users(rows, cols); break;
             }
         }
     }
