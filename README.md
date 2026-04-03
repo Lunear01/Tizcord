@@ -34,6 +34,76 @@
     - Client-Side Event Loop: The client application integrates standard input (STDIN_FILENO) and the network socket into a single select() loop. This ensures synchronous UI updates and non-blocking interactions.
     - Custom Wire Protocol: Network communication is standardized by a fixed-size C structure designated as TizcordPacket. Large data payloads, such as historical message retrieval, are securely chunked and streamed using sequence frames (LIST_FRAME_START, LIST_FRAME_MIDDLE, LIST_FRAME_END) to maintain memory safety and prevent buffer overflows.
 
+### Architecture Design
+
+#### System Topology
+```text
++----------------------+      TCP + TizcordPacket       +----------------------+
+|  Client Process      | <----------------------------> |  Server Process      |
+|                      |                                |                      |
+|  client_main.c       |                                |  main.c              |
+|  client.c            |                                |  server.c            |
+|  ui.c (ncurses TUI)  |                                |  auth/chat/social/   |
+|                      |                                |  server handlers     |
++----------+-----------+                                +----------+-----------+
+           |                                                           |
+           |                                                           |
+           | shared/protocol.h + shared/packet_helper.c               |
+           +------------------------------+----------------------------+
+                                          |
+                                          v
+                               +----------------------+
+                               |   SQLite Database    |
+                               |   db/schema.sql      |
+                               |   server/db.c        |
+                               +----------------------+
+```
+
+#### Layered Design
+- Presentation Layer (Client UI): `client/ui.c`
+    - Renders terminal screens and handles keyboard input.
+    - Runs a select()-based loop over both keyboard input and the server socket so UI and network events are processed in one event loop.
+- Client Transport Layer: `client/client.c`, `shared/packet_helper.c`
+    - Converts user actions into protocol packets.
+    - Uses full-packet send/receive helpers to guarantee complete transmission of fixed-size `TizcordPacket` messages.
+- Server Gateway + Dispatcher: `server/server.c`
+    - Accepts connections and maintains active `ClientNode` sessions.
+    - Dispatches incoming packets by type to specialized handlers.
+- Domain Services (Server): `server/auth.c`, `server/tizcord_chat.c`, `server/tizcord_server.c`, `server/tizcord_social.c`
+    - Authentication and session lifecycle.
+    - Channel/DM messaging and history retrieval.
+    - Server/channel membership and moderation workflows.
+    - Friends/status social graph operations.
+- Persistence Layer: `server/db.c`, `db/schema.sql`
+    - SQLite-backed repository-style functions for users, memberships, channels, messages, and direct messages.
+    - Passwords are hashed via yescrypt (libcrypt).
+
+#### Protocol Design
+- Shared contract: `shared/protocol.h`
+- Packet families: `PACKET_AUTH`, `PACKET_DM`, `PACKET_SERVER`, `PACKET_CHANNEL`, `PACKET_SOCIAL`
+- Response semantics: standardized response codes (`RESP_OK`, `RESP_ERR_*`, etc.)
+- List streaming: list metadata (`list_id`, `list_index`, `list_total`, `list_frame`) supports chunked list/history delivery across multiple packets.
+
+#### Runtime Flow (Example: Sending a Channel Message)
+1. User enters a message in the chat screen (`client/ui.c`).
+2. Client builds a `PACKET_CHANNEL` with `CHANNEL_MESSAGE` (`client/client.c`).
+3. Packet is serialized/sent with `send_full_packet()` (`shared/packet_helper.c`).
+4. Server event loop receives the packet and dispatches it (`server/server.c`).
+5. Chat service validates sender/channel, persists message, and broadcasts (`server/tizcord_chat.c` + `server/db.c`).
+6. Each recipient client receives the packet and redraws UI state (`client/ui.c`).
+
+#### Runtime Flow (Example: Login)
+1. Client sends `PACKET_AUTH` with `AUTH_LOGIN`.
+2. Server verifies credentials against stored hash (`server/auth.c` + `server/db.c`).
+3. On success, server binds session state to the active `ClientNode` and may revoke older sessions for the same account.
+4. Social/server membership lists are refreshed and streamed back using framed list packets.
+
+#### Design Properties
+- Single-process event-driven concurrency on both client and server with select().
+- Strict protocol sharing between components through one shared header (`shared/protocol.h`).
+- Clear separation of concerns: UI, transport, business logic, and persistence are isolated by module.
+- Persistent state with deterministic restart behavior through SQLite.
+
 ### Dependencies
 - To compile and execute Tizcord, the following dependencies are required:
     - gcc (GNU Compiler Collection)
