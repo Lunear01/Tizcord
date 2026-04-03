@@ -23,8 +23,7 @@ typedef enum {
 
 typedef enum { 
     STATUS_ONLINE, 
-    STATUS_OFFLINE, 
-    STATUS_AWAY 
+    STATUS_OFFLINE
 } UserStatus;
 
 typedef enum {
@@ -47,11 +46,6 @@ typedef enum {
 
 // Action Flags
 // These help the server know exactly what to do with the packet
-typedef enum {
-    SYSTEM_PING,
-    SYSTEM_PONG,
-    SYSTEM_ERROR
-} SystemAction;
 
 typedef enum {
     AUTH_LOGIN,
@@ -69,7 +63,6 @@ typedef enum {
     SERVER_LEAVE,
     SERVER_CREATE,
     SERVER_DELETE,   // admin only
-    SERVER_EDIT,     // admin only
     SERVER_LIST,
     SERVER_LIST_CHANNELS,
     SERVER_LIST_MEMBERS,
@@ -80,7 +73,6 @@ typedef enum {
 typedef enum {
     CHANNEL_CREATE, // admin only
     CHANNEL_DELETE, // admin only
-    CHANNEL_JOIN,
     CHANNEL_MESSAGE,
     CHANNEL_HISTORY_REQUEST,
 } ChannelAction;
