@@ -20,15 +20,8 @@ static int safe_send_packet(int socket, TizcordPacket *packet) {
         return -1;
     }
 
-    // Using send with MSG_NOSIGNAL prevents the app from crashing if the server disconnects
-    ssize_t bytes_sent = send(socket, packet, sizeof(TizcordPacket), MSG_NOSIGNAL);
-
-    if (bytes_sent < 0) {
+    if (send_full_packet(socket, packet) != 0) {
         perror("[Error] Failed to send packet");
-        return -1;
-    } else if (bytes_sent < (ssize_t)sizeof(TizcordPacket)) {
-        fprintf(stderr, "[Error] Partial write occurred (%zd/%zu bytes sent).\n", 
-                bytes_sent, sizeof(TizcordPacket));
         return -1;
     }
 
@@ -49,11 +42,15 @@ void connect_to_server(const char *ip_address, int port) {
     // Convert IPv4 addresses from text to binary form
     if (inet_pton(AF_INET, ip_address, &serv_addr.sin_addr) <= 0) {
         printf("\nInvalid address or Address not supported\n");
+        close(client_socket);
+        client_socket = -1;
         return;
     }
 
     if (connect(client_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nConnection Failed\n");
+        perror("connect");
+        close(client_socket);
+        client_socket = -1;
         return;
     }
     
@@ -84,12 +81,10 @@ int send_login(const char *username, const char *password) {
 }
 
 void send_logout(void) {
-    if (client_socket < 0) return;
-
     TizcordPacket packet = create_base_packet(PACKET_AUTH);
     packet.payload.auth.action = AUTH_LOGOUT;
 
-    write(client_socket, &packet, sizeof(TizcordPacket));
+    safe_send_packet(client_socket, &packet);
 }
 
 void create_server(const char *server_name) {

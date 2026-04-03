@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "include/db.h"
-#include "include/server.h"
+#include "db.h"
+#include "server.h"
 
 #ifndef PORT
 #define PORT 4242

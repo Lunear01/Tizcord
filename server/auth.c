@@ -1,9 +1,10 @@
-#include "../shared/protocol.h"
-#include "include/auth.h"
-#include "include/db.h"
-#include "include/server.h"
-#include "include/tizcord_social.h"
-#include "include/tizcord_server.h"
+#include "protocol.h"
+#include "auth.h"
+#include "client_helper.h"
+#include "db.h"
+#include "server.h"
+#include "tizcord_social.h"
+#include "tizcord_server.h"
 
 #include <crypt.h>
 #include <stdio.h>
@@ -48,7 +49,7 @@ static void revoke_existing_login(ServerContext *ctx, int current_client_fd,
             strncpy(logout_packet.payload.auth.username, username, MAX_NAME_LEN - 1);
         }
 
-        write(other->socket_fd, &logout_packet, sizeof(TizcordPacket));
+        send_packet_to_client(other->socket_fd, &logout_packet);
         clear_client_session(other);
         printf("[Server] Revoked older session for %s on fd %d\n",
                username != NULL ? username : "(unknown)", other->socket_fd);
@@ -68,7 +69,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     if (setting == NULL) {
         printf("[Server] CRITICAL: crypt_gensalt returned NULL! Aborting hash.\n");
         reply.payload.auth.status_code = 1;
-        write(client_fd, &reply, sizeof(TizcordPacket));
+        send_packet_to_client(client_fd, &reply);
         return;
     }
     
@@ -77,7 +78,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     if (hash == NULL) {
         printf("[Server] CRITICAL: crypt returned NULL! Aborting hash.\n");
         reply.payload.auth.status_code = 1;
-        write(client_fd, &reply, sizeof(TizcordPacket));
+        send_packet_to_client(client_fd, &reply);
         return;
     }
     
@@ -85,7 +86,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     if (ctx == NULL || ctx->db == NULL) {
         printf("[Server] CRITICAL: Database context is NULL! Cannot insert.\n");
         reply.payload.auth.status_code = 1;
-        write(client_fd, &reply, sizeof(TizcordPacket));
+        send_packet_to_client(client_fd, &reply);
         return;
     }
     
@@ -114,7 +115,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     }
     
     // Send standard server response packet back
-    write(client_fd, &reply, sizeof(TizcordPacket));
+    send_packet_to_client(client_fd, &reply);
 }
 
 void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
@@ -128,7 +129,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     if (ctx == NULL || ctx->db == NULL) {
         printf("[Server] CRITICAL: DB context is NULL!\n");
         reply.payload.auth.status_code = 1;
-        write(client_fd, &reply, sizeof(TizcordPacket));
+        send_packet_to_client(client_fd, &reply);
         return;
     }
     
@@ -139,7 +140,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     if (rc != 0) {
         printf("[Server] Login Failed: Username %s not found.\n", packet->payload.auth.username);
         reply.payload.auth.status_code = 1;
-        write(client_fd, &reply, sizeof(TizcordPacket));
+        send_packet_to_client(client_fd, &reply);
         return;
     }
     
@@ -170,7 +171,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
         notify_all_user_lists(ctx);
     }
     
-    write(client_fd, &reply, sizeof(TizcordPacket));
+    send_packet_to_client(client_fd, &reply);
 }
 
 void logout_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
@@ -193,7 +194,7 @@ void logout_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
             reply.type = PACKET_AUTH;
             reply.payload.auth.action = AUTH_LOGOUT;
             reply.payload.auth.status_code = RESP_ERR_UNAUTHORIZED;
-            write(client_fd, &reply, sizeof(TizcordPacket));
+            send_packet_to_client(client_fd, &reply);
             return;
         }
 
@@ -212,7 +213,7 @@ void logout_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
         reply.payload.auth.status_code = RESP_DONE;
         strncpy(reply.payload.auth.username, username, MAX_NAME_LEN - 1);
 
-        write(client_fd, &reply, sizeof(TizcordPacket));
+        send_packet_to_client(client_fd, &reply);
         printf("[Server] Logged out user %s on fd %d\n", username, client_fd);
         return;
     }
