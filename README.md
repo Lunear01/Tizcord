@@ -46,25 +46,26 @@
 - Clone the repository and navigate to the project root directory.
 - Compile the source code and initialize the database using the provided Makefile:
 
+```bash
     # Compile the source code
     make all
 
     # Initialize the SQLite database and run the necessary SQL migrations
     make db
-
+```
 ### Usage
 - Initializing the Server
 - Execute the server binary from the project directory. The server accepts optional arguments for the port number and database file:
-
-./server 4242 tizcord.db
-
-Note: If arguments are omitted, the server defaults to port 4242.
+```bash
+    ./server 4242 tizcord.db
+```
+**Note: If arguments are omitted, the server defaults to port 4242.**
 
 ### Connecting a Client
 - Launch the client application in a separate terminal instance, specifying the server's IPv4 address and target port:
-
-./client 127.0.0.1 4242
-
+```bash
+    ./client 127.0.0.1 4242
+```
 ### Command Line Interface (CLI) Reference
 - Within the Tizcord UI, pressing the / key activates the command-line prompt. The following commands are supported:
 
