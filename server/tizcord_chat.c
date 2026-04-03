@@ -237,13 +237,6 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
         packet->sender_id = sender_node->id;
     }
 
-    if (ctx->db != NULL && sender_node != NULL) {
-            db_save_direct_message(ctx->db, 
-                                   sender_node->id, 
-                                   packet->payload.dm.recipient_id, 
-                                   packet->payload.dm.message);
-    }
-
     if (packet->payload.dm.action == DM_MESSAGE) {
         printf("[Chat] Routing PACKET_DM from %lld to %lld\n", 
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
