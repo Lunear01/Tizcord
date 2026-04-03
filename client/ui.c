@@ -2212,12 +2212,7 @@ void start_ui(void)
 
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             while ((ch = getch()) != ERR) {
-                if (ch == 'q' && current_screen == SCREEN_CHAT) {
-                    goto exit_ui_loop; // Break out of nested loops cleanly
-                }
-
                 // Let local inputs decide behavior based on the current screen
-
                 // Route input to the active screen
                 switch (current_screen)
                 {
