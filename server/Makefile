@@ -14,7 +14,7 @@ server: main.o server.o auth.o db.o tizcord_chat.o tizcord_server.o tizcord_soci
 	$(CC) $(CFLAGS) -c $<
 
 db:
-	sqlite3 tizcord.db < ../migrations/001_init.sql
+	sqlite3 tizcord.db < ../db/schema.sql
 
 clean:
 	rm -f *.o server client ui
