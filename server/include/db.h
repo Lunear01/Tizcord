@@ -34,7 +34,6 @@ int db_create_server(DbContext* db, const char* name, int64_t user_id);
 int db_join_server(DbContext* db, int64_t server_id, int64_t user_id, bool is_admin);
 int db_leave_server(DbContext* db, int64_t server_id, int64_t user_id);
 int db_delete_server(DbContext* db, int64_t server_id, int64_t user_id);
-int db_edit_server(DbContext* db, int64_t server_id, int64_t user_id, const char* new_name);
 int db_list_servers(DbContext* db, ServerCallback server_cb, void* userdata);
 int db_list_server_channels(DbContext* db, int64_t server_id, ChannelCallback channel_cb, void* userdata);
 int db_list_server_members(DbContext* db, int64_t server_id, MemberCallback member_cb, void* userdata);

@@ -154,10 +154,6 @@ void handle_server_packet(ServerContext *ctx, ClientNode *client,
     case SERVER_DELETE:
         delete_tizcord_server(ctx, client, server_id);
         break;
-    case SERVER_EDIT:
-        edit_tizcord_server(ctx, client, server_id,
-                            packet->payload.server.server_name);
-        break;
     case SERVER_LIST:
         list_tizcord_servers(ctx, client);
         break;
@@ -345,39 +341,6 @@ void delete_tizcord_server(ServerContext *ctx, ClientNode *client,
                              RESP_ERR_DB, NULL);
     }
 }
-
-void edit_tizcord_server(ServerContext *ctx, ClientNode *client,
-                         int64_t server_id, const char *new_name) {
-    if (ctx == NULL || ctx->db == NULL || client == NULL || server_id <= 0 ||
-        new_name == NULL || new_name[0] == '\0') {
-        fprintf(stderr, "[Server] Invalid edit server request\n");
-        if (client != NULL) {
-            send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT,
-                                 RESP_ERR_INVALID, NULL);
-        }
-        return;
-    }
-
-    if (!client->is_authenticated) {
-        fprintf(stderr,
-                "[Server] Unauthenticated client attempted SERVER_EDIT\n");
-        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT,
-                             RESP_ERR_UNAUTHORIZED, NULL);
-        return;
-    }
-
-    if (db_edit_server(ctx->db, server_id, client->id, new_name) == 0) {
-        printf("[Server] User id=%lld edited server id=%lld\n", (long long)client->id,
-               (long long)server_id);
-        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT, RESP_OK,
-                             NULL);
-    } else {
-        fprintf(stderr, "[Server] Failed to edit server id=%lld\n", (long long)server_id);
-        send_action_response(client->socket_fd, PACKET_SERVER, SERVER_EDIT,
-                             RESP_ERR_DB, NULL);
-    }
-}
-
 void list_tizcord_servers(ServerContext *ctx, ClientNode *client) {
     ServerListAccumulator acc = {0};
 

@@ -347,31 +347,6 @@ int db_delete_server(DbContext* db, int64_t server_id, int64_t user_id){
     return 0;
 }
 
-int db_edit_server(DbContext* db, int64_t server_id, int64_t user_id, const char* new_name){
-    if (db_user_is_server_admin(db, server_id, user_id, &(int){0}) == -1) {
-        return -1; // User is not a member or not found
-    }
-
-    const char* sql = "UPDATE servers SET name = ? WHERE id = ?;";
-    sqlite3_stmt* stmt;
-    
-    if (sqlite3_prepare_v2(db->conn, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        return db_err(db, "Failed to prepare server edit");
-    }
-
-    sqlite3_bind_text(stmt, 1, new_name, strlen(new_name), SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, server_id);
-
-    int rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc != SQLITE_DONE) {
-        return db_err(db, "Failed to execute server edit");
-    }
-
-    return 0;
-}
-
 int db_list_servers(DbContext* db, ServerCallback server_cb, void *userdata) {
     // Join with server_members to count how many users are in each server
     const char* sql = 
