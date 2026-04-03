@@ -952,7 +952,7 @@ void handle_chat_input(int ch)
 
 void ui_handle_auth_response(TizcordPacket *packet) {
     if (packet->payload.auth.action == AUTH_REGISTER || packet->payload.auth.action == AUTH_LOGIN) {
-        if (packet->payload.auth.status_code == 0) {
+        if (packet->payload.auth.status_code == RESP_OK) {
             // Network Register/Login succeeded! 
             // Proceed into the mock local state to trick the UI flow
             strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
@@ -1084,14 +1084,14 @@ void ui_update_server_state(TizcordPacket *packet) {
 
     // Refresh the list when a server is successfully created
     if (packet->payload.server.action == SERVER_CREATE) {
-        if (packet->payload.server.status_code == 0) { 
+        if (packet->payload.server.status_code == RESP_OK) {
             list_all_servers_request(); 
         }
         return;
     }
 
     if (packet->payload.server.action == SERVER_LEAVE) {
-        if (packet->payload.server.status_code == 0) {
+        if (packet->payload.server.status_code == RESP_OK) {
             command_status_msg[0] = '\0';
             active_server = -1;
             active_channel = 0;
@@ -1107,7 +1107,7 @@ void ui_update_server_state(TizcordPacket *packet) {
     }
 
     if (packet->payload.server.action == SERVER_DELETE) {
-        if (packet->payload.server.status_code == 0) {
+        if (packet->payload.server.status_code == RESP_OK) {
             // SUCCESS! Close the window.
             command_status_msg[0] = '\0';
             if (current_screen == SCREEN_COMMAND) {
@@ -1191,7 +1191,7 @@ void ui_update_server_state(TizcordPacket *packet) {
         }
     } 
     else if (packet->payload.server.action == SERVER_KICK_MEMBER) {
-        if (packet->payload.server.status_code == 0) {
+        if (packet->payload.server.status_code == RESP_OK) {
             command_status_msg[0] = '\0';
             if (current_screen == SCREEN_COMMAND) {
                 cmd_input[0] = '\0';
@@ -1585,7 +1585,7 @@ void process_network_packet(TizcordPacket *packet) {
                 ui_receive_channel_message(packet);
             } 
             else if (packet->payload.channel.action == CHANNEL_CREATE) {
-                if (packet->payload.channel.status_code == 0) {
+                if (packet->payload.channel.status_code == RESP_OK) {
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
                         cmd_input[0] = '\0';
@@ -1600,7 +1600,7 @@ void process_network_packet(TizcordPacket *packet) {
                 }
             } 
             else if (packet->payload.channel.action == CHANNEL_DELETE) {
-                if (packet->payload.channel.status_code == 0) {
+                if (packet->payload.channel.status_code == RESP_OK) {
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
                         cmd_input[0] = '\0';

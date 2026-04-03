@@ -151,14 +151,14 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
             
             int64_t new_channel_id = 0;
             if (db_create_channel(ctx->db, packet->payload.channel.server_id, packet->payload.channel.channel_name, &new_channel_id) == 0) {
-                reply.payload.channel.status_code = 0; 
+                reply.payload.channel.status_code = RESP_OK;
                 reply.payload.channel.channel_id = new_channel_id; 
                 strncpy(reply.payload.channel.channel_name, packet->payload.channel.channel_name, MAX_NAME_LEN - 1);
             } else {
-                reply.payload.channel.status_code = -5; 
+                reply.payload.channel.status_code = RESP_ERR_DB;
             }
         } else {
-            reply.payload.channel.status_code = 401; // Unauthorized
+            reply.payload.channel.status_code = RESP_ERR_UNAUTHORIZED;
         }
         send_packet_to_client(sender_fd, &reply);
 
@@ -181,16 +181,18 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                 if (db_user_is_server_admin(ctx->db, server_id, sender_node->id, &is_admin) == 0 && is_admin) {
                     
                     if (db_delete_channel(ctx->db, packet->payload.channel.channel_id) == 0) {
-                        reply.payload.channel.status_code = 0;
+                        reply.payload.channel.status_code = RESP_OK;
                     } else {
-                        reply.payload.channel.status_code = -5;
+                        reply.payload.channel.status_code = RESP_ERR_DB;
                     }
                 } else {
-                    reply.payload.channel.status_code = 401; // Unauthorized
+                    reply.payload.channel.status_code = RESP_ERR_UNAUTHORIZED;
                 }
             } else {
                 reply.payload.channel.status_code = RESP_ERR_NOT_FOUND;
             }
+        } else {
+            reply.payload.channel.status_code = RESP_ERR_INTERNAL;
         }
         send_packet_to_client(sender_fd, &reply);
     }

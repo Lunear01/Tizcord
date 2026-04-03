@@ -68,7 +68,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     char *setting = crypt_gensalt("$y$", 0, NULL, 0);
     if (setting == NULL) {
         printf("[Server] CRITICAL: crypt_gensalt returned NULL! Aborting hash.\n");
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_INTERNAL;
         send_packet_to_client(client_fd, &reply);
         return;
     }
@@ -77,7 +77,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     char *hash = crypt(packet->payload.auth.password, setting);
     if (hash == NULL) {
         printf("[Server] CRITICAL: crypt returned NULL! Aborting hash.\n");
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_INTERNAL;
         send_packet_to_client(client_fd, &reply);
         return;
     }
@@ -85,7 +85,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     printf("[Server] Step 3: Hashing success! Inserting into Database...\n");
     if (ctx == NULL || ctx->db == NULL) {
         printf("[Server] CRITICAL: Database context is NULL! Cannot insert.\n");
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_INTERNAL;
         send_packet_to_client(client_fd, &reply);
         return;
     }
@@ -95,7 +95,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     
     if (rc == 0) {
         printf("[Server] Successfully registered user! ID: %lld\n", (long long)user_id);
-        reply.payload.auth.status_code = 0;
+        reply.payload.auth.status_code = RESP_OK;
 
         for (int i = 0; i < ctx->client_count; i++) {
             if (ctx->clients[i].socket_fd == client_fd) {
@@ -111,7 +111,7 @@ void register_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) 
     
     else {
         printf("[Server] Failed to register user (Username likely already exists!).\n");
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_CONFLICT;
     }
     
     // Send standard server response packet back
@@ -128,7 +128,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     
     if (ctx == NULL || ctx->db == NULL) {
         printf("[Server] CRITICAL: DB context is NULL!\n");
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_INTERNAL;
         send_packet_to_client(client_fd, &reply);
         return;
     }
@@ -139,7 +139,7 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     
     if (rc != 0) {
         printf("[Server] Login Failed: Username %s not found.\n", packet->payload.auth.username);
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_NOT_FOUND;
         send_packet_to_client(client_fd, &reply);
         return;
     }
@@ -147,13 +147,13 @@ void login_account(ServerContext *ctx, int client_fd, TizcordPacket *packet) {
     char *computed_hash = crypt(packet->payload.auth.password, db_hash);
     if (computed_hash == NULL || strcmp(computed_hash, db_hash) != 0) {
         printf("[Server] Login Failed: Incorrect password for %s.\n", packet->payload.auth.username);
-        reply.payload.auth.status_code = 1;
+        reply.payload.auth.status_code = RESP_ERR_INVALID;
     } 
     
     else {
         printf("[Server] Successfully authenticated user %s! (ID: %lld)\n", 
                packet->payload.auth.username, (long long)db_user_id);
-        reply.payload.auth.status_code = 0;
+        reply.payload.auth.status_code = RESP_OK;
 
         revoke_existing_login(ctx, client_fd, db_user_id, packet->payload.auth.username);
         
