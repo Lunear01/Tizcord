@@ -6,9 +6,9 @@
 #include <sys/socket.h>
 #include <time.h>
 
-#include "protocol.h"  
-#include "client.h"   
-#include "packet_helper.h"
+#include "../shared/protocol.h"
+#include "include/client.h"
+#include "../shared/packet_helper.h"
 
 // Global socket for the client connection
 int client_socket = -1;

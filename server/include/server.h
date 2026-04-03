@@ -54,6 +54,7 @@ typedef struct ServerContext {
     ClientNode clients[MAX_CLIENTS];
     TizcordServer tizcord_servers[MAX_SERVERS];
     int tizcord_server_count;
+    int current_client_index;
     DbContext* db;
 } ServerContext;
 

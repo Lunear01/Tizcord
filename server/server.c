@@ -1,9 +1,9 @@
-#include "protocol.h"
-#include "server.h"
-#include "auth.h"
-#include "tizcord_server.h"
-#include "tizcord_chat.h"
-#include "tizcord_social.h"
+#include "../shared/protocol.h"
+#include "include/server.h"
+#include "include/auth.h"
+#include "include/tizcord_server.h"
+#include "include/tizcord_chat.h"
+#include "include/tizcord_social.h"
 
 
 #include <stdio.h>
@@ -14,7 +14,7 @@
 #include <errno.h>
 #include <sys/select.h>
 #include <sys/socket.h>
-#include "packet_helper.h"
+#include "../shared/packet_helper.h"
 
 // Reset everything in the server
 void init_server_context(ServerContext *ctx, DbContext* db) {

@@ -1,10 +1,10 @@
-#include "protocol.h"
-#include "auth.h"
-#include "client_helper.h"
-#include "db.h"
-#include "server.h"
-#include "tizcord_social.h"
-#include "tizcord_server.h"
+#include "../shared/protocol.h"
+#include "include/auth.h"
+#include "include/client_helper.h"
+#include "include/db.h"
+#include "include/server.h"
+#include "include/tizcord_social.h"
+#include "include/tizcord_server.h"
 
 #include <crypt.h>
 #include <stdio.h>

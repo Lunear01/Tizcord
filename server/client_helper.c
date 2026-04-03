@@ -3,9 +3,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
-#include "client_helper.h"
-#include "packet_helper.h"
-#include "protocol.h"
+#include "include/client_helper.h"
+#include "../shared/packet_helper.h"
+#include "../shared/protocol.h"
 
 static int32_t next_list_id = 1;
 

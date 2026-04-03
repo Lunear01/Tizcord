@@ -7,9 +7,9 @@
 #include <unistd.h>
 #include <sys/select.h>
 
-#include "../include/ui.h"
-#include "../include/client.h"
-#include "packet_helper.h"
+#include "include/ui.h"
+#include "include/client.h"
+#include "../shared/packet_helper.h"
 
 extern int client_socket;
 

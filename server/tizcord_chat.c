@@ -1,11 +1,11 @@
 /* chat methods */
-#include "protocol.h"
-#include "packet_helper.h"
-#include "server.h"
-#include "db.h"
-#include "tizcord_chat.h"
-#include "client_helper.h"
-#include "tizcord_server.h"
+#include "../shared/protocol.h"
+#include "../shared/packet_helper.h"
+#include "include/server.h"
+#include "include/db.h"
+#include "include/tizcord_chat.h"
+#include "include/client_helper.h"
+#include "include/tizcord_server.h"
 
 #include <stdint.h>
 #include <stdio.h>

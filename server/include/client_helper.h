@@ -1,7 +1,8 @@
 #ifndef CLIENT_HELPER_H
 
 #define CLIENT_HELPER_H
-#include "protocol.h"
+#include <stddef.h>
+#include "../../shared/protocol.h"
 
 int send_packet_to_client(int client_fd, const TizcordPacket *packet);
 int send_action_response(int client_fd, PacketType type, int action, int status_code,

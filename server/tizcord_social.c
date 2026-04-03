@@ -1,8 +1,8 @@
-#include "tizcord_social.h"
-#include "db.h"
-#include "packet_helper.h"
-#include "client_helper.h"
-#include "protocol.h"
+#include "include/tizcord_social.h"
+#include "include/db.h"
+#include "../shared/packet_helper.h"
+#include "include/client_helper.h"
+#include "../shared/protocol.h"
 
 #include <stdio.h>
 #include <string.h>
