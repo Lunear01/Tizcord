@@ -67,7 +67,7 @@
     ./client 127.0.0.1 4242
     ```
 ### Command Line Interface (CLI) Reference
-- Within the Tizcord UI, pressing the / key activates the command-line prompt. The following commands are supported:
+- Within the Tizcord UI, pressing the `F1` key activates the command-line prompt. The following commands are supported:
 
 #### Social Commands:
 - `/friend [username]` - Transmit a friend request.
