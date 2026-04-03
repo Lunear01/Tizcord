@@ -68,14 +68,14 @@ Note: If arguments are omitted, the server defaults to port 4242.
 ### Command Line Interface (CLI) Reference
 - Within the Tizcord UI, pressing the / key activates the command-line prompt. The following commands are supported:
 
-Social Commands:
+#### Social Commands:
     - /friend [username] - Transmit a friend request.
     - /accept [username] - Authorize an incoming friend request.
     - /reject [username] - Decline an incoming friend request.
     - /unfriend [username] - Terminate an existing friendship.
     - /setstatus [status] - Update your custom profile status (maximum 64 characters).
 
-Server Commands:
+#### Server Commands:
     - /createserver [name] - Instantiate a new server.
     - /deleteserver [name] - Permanently delete a server (Requires Administrator privileges).
     - /createchannel [name] - Provision a new channel in the active server (Requires Administrator privileges).
