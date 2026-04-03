@@ -70,21 +70,21 @@
 - Within the Tizcord UI, pressing the / key activates the command-line prompt. The following commands are supported:
 
 #### Social Commands:
-    - /friend [username] - Transmit a friend request.
-    - /accept [username] - Authorize an incoming friend request.
-    - /reject [username] - Decline an incoming friend request.
-    - /unfriend [username] - Terminate an existing friendship.
-    - /setstatus [status] - Update your custom profile status (maximum 64 characters).
+- /friend [username] - Transmit a friend request.
+- /accept [username] - Authorize an incoming friend request.
+- /reject [username] - Decline an incoming friend request.
+- /unfriend [username] - Terminate an existing friendship.
+- /setstatus [status] - Update your custom profile status (maximum 64 characters).
 
 #### Server Commands:
-    - /createserver [name] - Instantiate a new server.
-    - /deleteserver [name] - Permanently delete a server (Requires Administrator privileges).
-    - /createchannel [name] - Provision a new channel in the active server (Requires Administrator privileges).
-    - /deletechannel [name] - Remove a channel from the active server (Requires Administrator privileges).
-    - /kick [username] - Forcibly disconnect and remove a user from the active server (Requires Administrator privileges).
-    - /help - Display the internal command reference.
+- /createserver [name] - Instantiate a new server.
+- /deleteserver [name] - Permanently delete a server (Requires Administrator privileges).
+- /createchannel [name] - Provision a new channel in the active server (Requires Administrator privileges).
+- /deletechannel [name] - Remove a channel from the active server (Requires Administrator privileges).
+- /kick [username] - Forcibly disconnect and remove a user from the active server (Requires Administrator privileges).
+- /help - Display the internal command reference.
 
 ### Contributorsd
-    - Lunear01
-    - peterlee42
-    - yiboooooooo
+- Lunear01
+- peterlee42
+- yiboooooooo
