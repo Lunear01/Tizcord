@@ -1,10 +1,11 @@
-████████╗ ██║ ███████╗   █████╗  ██████╗  ██████╗  █████╗ 
+```text
+  ████████╗ ██║ ███████╗   █████╗  ██████╗  ██████╗  █████╗ 
   ╚══██╔══╝ ██║ ╚══███╔╝ ██╔════╝ ██╔═══██╗ ██╔══██╗ ██╔══██╗
      ██║    ██║   ███╔╝  ██║      ██║   ██║ ██████╔╝ ██║  ██║
      ██║    ██║  ███╔╝   ██║      ██║   ██║ ██╔══██╗ ██║  ██║
      ██║    ██║ ███████╗ ╚██████╗ ╚██████╔╝ ██║  ██║ ██████╔╝
      ╚═╝    ╚═╝ ╚══════╝  ╚═════╝  ╚═════╝  ╚═╝  ╚═╝ ╚═════╝
-
+```
 ### What is it? 
 - Tizcord is a robust, terminal-based concurrent chat application inspired by Discord and built entirely in C. It leverages a multiplexed client-server architecture over TCP sockets to facilitate real-time communication directly within a command-line interface.
 
