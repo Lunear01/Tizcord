@@ -1,5 +1,5 @@
 /* save messages to db */
-#include "include/db.h"
+#include "db.h"
 
 #include <uuid/uuid.h>
 #include <stdio.h>

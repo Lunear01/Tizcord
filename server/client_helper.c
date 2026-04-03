@@ -3,8 +3,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
-#include <sys/socket.h>
 #include "client_helper.h"
+#include "packet_helper.h"
 #include "protocol.h"
 
 static int32_t next_list_id = 1;
@@ -22,14 +22,8 @@ int send_packet_to_client(int client_fd, const TizcordPacket *packet) {
 		return -1;
 	}
 
-	ssize_t bytes_sent = send(client_fd, packet, sizeof(TizcordPacket), 0);
-	if (bytes_sent < 0) {
+	if (send_full_packet(client_fd, packet) != 0) {
 		fprintf(stderr, "[Client Helper] Failed to send packet: %s\n", strerror(errno));
-		return -1;
-	} 
-	
-	else if (bytes_sent != sizeof(TizcordPacket)) {
-		fprintf(stderr, "[Client Helper] Partial packet sent: %zd bytes\n", bytes_sent);
 		return -1;
 	}
 	return 0;
@@ -213,5 +207,4 @@ int send_list_end_response(int client_fd, PacketType type) {
 
 	return send_packet_to_client(client_fd, &end_packet);
 }
-
 
