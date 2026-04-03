@@ -240,7 +240,11 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
     if (packet->payload.dm.action == DM_MESSAGE) {
         printf("[Chat] Routing PACKET_DM from %lld to %lld\n", 
                (long long)packet->sender_id, (long long)packet->payload.dm.recipient_id);
-        
+    
+        if (ctx->db != NULL && sender_node != NULL) {
+                db_save_direct_message(ctx->db, sender_node->id, packet->payload.dm.recipient_id, packet->payload.dm.message);
+        }
+
         int found = 0;
         // Find recipient by matching ID in the active client array
         for (int i = 0; i < ctx->client_count; i++) {
@@ -254,9 +258,6 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             }
         }
         
-        if (ctx->db != NULL && sender_node != NULL) {
-            db_save_direct_message(ctx->db, sender_node->id, packet->payload.dm.recipient_id, packet->payload.dm.message);
-        }
         if (!found) {
             printf("[Chat] Recipient ID %lld not found for PACKET_DM\n", (long long)packet->payload.dm.recipient_id);
         }
