@@ -599,7 +599,7 @@ void draw_server_list(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  TAB: Friends  \\: Users  /: Command `:DMs");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ENTER: join   ESC: logout  F1: Command  F2: Friends  F3: Users  F4: DM ");
     attroff(COLOR_PAIR(3));
 
     refresh();
@@ -609,11 +609,11 @@ void handle_server_input(int ch)
 {
     switch (ch)
     {
-    case '\t':
+    case KEY_F(2):
         current_screen = SCREEN_FRIENDS;
         request_friend_list();
         break;
-    case '/':
+    case KEY_F(1):
         previous_screen = current_screen;
         current_screen = SCREEN_COMMAND;
         cmd_input[0] = '/';
@@ -646,11 +646,11 @@ void handle_server_input(int ch)
     case 27: /* ESC = logout */
         send_logout();
         break;
-    case '`': // The backtick key
+    case KEY_F(4):
             current_screen = SCREEN_DMS;
             request_friend_list(); // Refresh the friend list so we have people to PACKET_DM
             break;
-    case '\\': // Backslash key
+    case KEY_F(3):
             current_screen = SCREEN_USERS;
             request_user_list();
             break;
@@ -710,14 +710,6 @@ void draw_chat(int rows, int cols)
             attroff(COLOR_PAIR(3));
         }
     }
-
-    attron(COLOR_PAIR(9) | A_BOLD);
-    mvprintw(rows - 3, 1, " << Servers");
-    attroff(COLOR_PAIR(9) | A_BOLD);
-
-    attron(COLOR_PAIR(8) | A_BOLD);
-    mvprintw(rows - 2, 1, " Logout");
-    attroff(COLOR_PAIR(8) | A_BOLD);
 
     attron(COLOR_PAIR(6));
     for (int r = 0; r < rows - 1; r++)
@@ -884,7 +876,7 @@ void draw_chat(int rows, int cols)
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 1, " TAB: Channels  ENTER: Send  ESC: Leave Server   CLICK: Channel  q: Quit  /: Command");
+    mvprintw(rows - 1, 1, " TAB: Channels  ENTER: Send  F1: Command  F2: Server List");
     attroff(COLOR_PAIR(3));
 
     /* Cursor */
@@ -924,11 +916,12 @@ void handle_chat_input(int ch)
         if (chat_input_len > 0)
             chat_input[--chat_input_len] = '\0';
         break;
-    case 27: // ESC key
+    case KEY_F(2):
         chat_input[0] = '\0';
         chat_input_len = 0;
         if (active_server >= 0 && active_server < server_count) {
-            leave_server(servers[active_server].id);
+            // Go to server page
+            current_screen = SCREEN_SERVERS;
         } else {
             active_server = -1;
             users[current_user].server_id = -1;
@@ -938,7 +931,7 @@ void handle_chat_input(int ch)
     
 
     default:
-        if (ch == '/' && chat_input_len == 0) {
+        if (ch == KEY_F(1) && chat_input_len == 0) {
             previous_screen = current_screen;
             current_screen = SCREEN_COMMAND;
             cmd_input[0] = '/';
@@ -1101,9 +1094,13 @@ void ui_update_server_state(TizcordPacket *packet) {
             command_status_msg[0] = '\0';
             active_server = -1;
             active_channel = 0;
+
+        if (current_user != -1) {
             users[current_user].server_id = -1;
-            current_screen = SCREEN_SERVERS;
-            list_all_servers_request();
+        }
+
+        current_screen = SCREEN_SERVERS;
+        list_all_servers_request();
         }
         return;
     }
@@ -1252,6 +1249,7 @@ void draw_command(int rows, int cols)
             "/unfriend [username]",
             "/reject [username]",
             "/createserver [server_name]",
+            "/leaveserver",
             "/deleteserver [server_name]",
             "/createchannel [channel_name]",
             "/deletechannel [channel_name]",
@@ -1370,6 +1368,22 @@ void handle_command_input(int ch)
                 
                 if (strlen(server_name) > 0) {
                     create_server(server_name);
+                }
+            } 
+
+            else if (strcmp(cmd_input, "/leaveserver") == 0) {
+                // Check if the user is actually in a server
+                if (active_server != -1 && current_user != -1) {
+                    // Send leave request using the ID of the active server
+                    leave_server(servers[active_server].id);
+                    
+                    // We close the command window immediately; 
+                    // the network callback (ui_update_server_state) handles the screen transition
+                    should_close = 1; 
+                } else {
+                    // Keep window open and show the error message in red
+                    should_close = 0;
+                    strcpy(command_status_msg, "Error: You're not in a server.");
                 }
             } 
             
@@ -1797,18 +1811,18 @@ void draw_friends(int rows, int cols) {
 
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ESC: logout  TAB: Servers  \\: Users  /: Command");
+    mvprintw(rows - 1, 2, " UP/DOWN: Navigate     ESC: logout     F1: Command     F2: Server List     F3: Users");
     attroff(COLOR_PAIR(3));
     refresh();
 }
 
 void handle_friends_input(int ch) {
     switch (ch) {
-        case '\t':
+        case KEY_F(2):
             current_screen = SCREEN_SERVERS;
             list_all_servers_request();
             break;
-        case '/':
+        case KEY_F(1):
             previous_screen = current_screen;
             current_screen = SCREEN_COMMAND;
             cmd_input[0] = '/';
@@ -1823,7 +1837,7 @@ void handle_friends_input(int ch) {
         case 27:
             send_logout();
             break;
-        case '\\':
+        case KEY_F(3):
             current_screen = SCREEN_USERS;
             request_user_list();
             break;
@@ -1902,18 +1916,18 @@ void draw_users(int rows, int cols) {
     /* ── Status bar ── */
     attron(COLOR_PAIR(3));
     mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 2, " UP/DOWN: navigate   ESC: logout  TAB: Servers  /: Command");
+    mvprintw(rows - 1, 2, " UP/DOWN: navigate      ESC: logout     F1: Command     F2: Server List");
     attroff(COLOR_PAIR(3));
     refresh();
 }
 
 void handle_users_input(int ch) {
     switch (ch) {
-        case '\t':
+        case KEY_F(2):
             current_screen = SCREEN_SERVERS;
             list_all_servers_request();
             break;
-        case '/':
+        case KEY_F(1):
             previous_screen = current_screen;
             current_screen = SCREEN_COMMAND;
             cmd_input[0] = '/';
@@ -1946,6 +1960,12 @@ void draw_dms(int rows, int cols) {
     attron(COLOR_PAIR(6));
     for (int r = 0; r < rows - 1; r++) mvaddch(r, 20, ACS_VLINE);
     attroff(COLOR_PAIR(6));
+
+    /* ── Status Bar ── */
+    attron(COLOR_PAIR(3));
+    mvhline(rows - 1, 0, ' ', cols);
+    mvprintw(rows - 1, 1, " TAB: Select Friends  ENTER: Send  F2: Server List");
+    attroff(COLOR_PAIR(3));
 
     // Draw only accepted friends
     int display_row = 2;
@@ -2060,19 +2080,13 @@ void draw_dms(int rows, int cols) {
     mvprintw(rows - 2, main_x + 1 + prompt_len, "%.*s", main_w - prompt_len - 1, dm_input);
     attroff(COLOR_PAIR(1));
 
-    /* ── Status Bar ── */
-    attron(COLOR_PAIR(3));
-    mvhline(rows - 1, 0, ' ', cols);
-    mvprintw(rows - 1, 1, " TAB: cycle friends  ENTER: send  `: go back  ESC: servers");
-    attroff(COLOR_PAIR(3));
-
     move(rows - 2, main_x + 1 + prompt_len + dm_input_len);
     refresh();
 }
 
 void handle_dms_input(int ch) {
     if (active_dm_friend == -1) {
-        if (ch == '`' || ch == 27) current_screen = SCREEN_SERVERS;
+        if (ch == KEY_F(2)) current_screen = SCREEN_SERVERS;
         return;
     }
 
@@ -2092,8 +2106,7 @@ void handle_dms_input(int ch) {
             }
             break;
             
-        case '`':
-        case 27: // ESC
+        case KEY_F(2):
             current_screen = SCREEN_SERVERS;
             break;
 
