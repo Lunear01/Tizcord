@@ -2244,7 +2244,4 @@ void start_ui(void)
             }
         }
     }
-
-exit_ui_loop:
-    endwin();
 }
