@@ -154,7 +154,7 @@
 - `/kick [username]` - Forcibly disconnect and remove a user from the active server (Requires Administrator privileges).
 - `/help` - Display the internal command reference.
 
-### Contributorsd
+### Contributors
 - Lunear01
 - peterlee42
 - yiboooooooo
