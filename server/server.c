@@ -12,8 +12,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include "../shared/packet_helper.h"
 
 // Reset everything in the server
 void init_server_context(ServerContext *ctx, DbContext* db) {
@@ -96,13 +98,22 @@ void run_server_loop(ServerContext *ctx) {
             int client_fd = ctx->clients[i].socket_fd;
             if (client_fd > 0 && FD_ISSET(client_fd, &read_set)) {
                 TizcordPacket packet;
+<<<<<<< HEAD
                 ssize_t bytes_received = packet_receive(client_fd, &packet);
                 if (bytes_received <= 0) {
+=======
+                int recv_status = recv_full_packet(client_fd, &packet);
+                if (recv_status <= 0) {
+>>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
                     // Client disconnected or error
                     int64_t disconnected_user_id = 0;
                     int was_authenticated = ctx->clients[i].is_authenticated;
                     if (was_authenticated) {
                         disconnected_user_id = ctx->clients[i].id;
+                    }
+
+                    if (recv_status < 0) {
+                        perror("recv_full_packet");
                     }
 
                     printf("Client on fd %d disconnected.\n", client_fd);
@@ -132,10 +143,14 @@ void run_server_loop(ServerContext *ctx) {
 // Accept a new connection and return the client socket fd
 int accept_connection(int listenfd) {
     struct sockaddr_in peer;
-    unsigned int peer_len = sizeof(peer);
+    socklen_t peer_len = sizeof(peer);
     peer.sin_family = AF_INET;
 
-    int client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
+    int client_socket;
+    do {
+        client_socket = accept(listenfd, (struct sockaddr *)&peer, &peer_len);
+    } while (client_socket < 0 && errno == EINTR);
+
     if (client_socket < 0) {
         perror("accept");
         return -1;

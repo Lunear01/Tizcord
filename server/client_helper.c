@@ -4,9 +4,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
-#include <sys/socket.h>
-#include "client_helper.h"
-#include "protocol.h"
+#include "include/client_helper.h"
+#include "../shared/packet_helper.h"
+#include "../shared/protocol.h"
 
 static int32_t next_list_id = 1;
 
@@ -23,11 +23,19 @@ int send_packet_to_client(int client_fd, const TizcordPacket *packet) {
 		return -1;
 	}
 
+<<<<<<< HEAD
 	if (packet_send(client_fd, packet) != 0) {
         fprintf(stderr, "[Client Helper] Failed to send packet: %s\n", strerror(errno));
         return -1;
     }
     return 0;
+=======
+	if (send_full_packet(client_fd, packet) != 0) {
+		fprintf(stderr, "[Client Helper] Failed to send packet: %s\n", strerror(errno));
+		return -1;
+	}
+	return 0;
+>>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 }	
 
 int send_action_response(int client_fd, PacketType type, int action, int status_code,
@@ -208,5 +216,4 @@ int send_list_end_response(int client_fd, PacketType type) {
 
 	return send_packet_to_client(client_fd, &end_packet);
 }
-
 

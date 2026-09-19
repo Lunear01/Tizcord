@@ -1,7 +1,7 @@
 /* tizcord server methods */
-#include "tizcord_server.h"
-#include "client_helper.h"
-#include "packet_helper.h"
+#include "include/tizcord_server.h"
+#include "include/client_helper.h"
+#include "../shared/packet_helper.h"
 
 #include <stdint.h>
 #include <stdio.h>

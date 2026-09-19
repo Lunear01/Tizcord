@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "../include/client.h"
-#include "../include/ui.h"
+#include "include/client.h"
+#include "include/ui.h"
 
 // Access the global socket defined in client.c
 extern int client_socket;

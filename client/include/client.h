@@ -1,6 +1,8 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#include <stdint.h>
+
 // Connections
 void connect_to_server(const char *ip_address, int port);
 

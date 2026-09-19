@@ -8,8 +8,9 @@
 #include <unistd.h>
 #include <sys/select.h>
 
-#include "../include/ui.h"
-#include "../include/client.h"
+#include "include/ui.h"
+#include "include/client.h"
+#include "../shared/packet_helper.h"
 
 extern int client_socket;
 
@@ -952,7 +953,7 @@ void handle_chat_input(int ch)
 
 void ui_handle_auth_response(TizcordPacket *packet) {
     if (packet->payload.auth.action == AUTH_REGISTER || packet->payload.auth.action == AUTH_LOGIN) {
-        if (packet->payload.auth.status_code == 0) {
+        if (packet->payload.auth.status_code == RESP_OK) {
             // Network Register/Login succeeded! 
             // Proceed into the mock local state to trick the UI flow
             strncpy(users[user_count].username, auth.username, MAX_NAME_LEN - 1);
@@ -1084,14 +1085,14 @@ void ui_update_server_state(TizcordPacket *packet) {
 
     // Refresh the list when a server is successfully created
     if (packet->payload.server.action == SERVER_CREATE) {
-        if (packet->payload.server.status_code == 0) { 
+        if (packet->payload.server.status_code == RESP_OK) {
             list_all_servers_request(); 
         }
         return;
     }
 
     if (packet->payload.server.action == SERVER_LEAVE) {
-        if (packet->payload.server.status_code == 0) {
+        if (packet->payload.server.status_code == RESP_OK) {
             command_status_msg[0] = '\0';
             active_server = -1;
             active_channel = 0;
@@ -1107,7 +1108,7 @@ void ui_update_server_state(TizcordPacket *packet) {
     }
 
     if (packet->payload.server.action == SERVER_DELETE) {
-        if (packet->payload.server.status_code == 0) {
+        if (packet->payload.server.status_code == RESP_OK) {
             // SUCCESS! Close the window.
             command_status_msg[0] = '\0';
             if (current_screen == SCREEN_COMMAND) {
@@ -1191,7 +1192,7 @@ void ui_update_server_state(TizcordPacket *packet) {
         }
     } 
     else if (packet->payload.server.action == SERVER_KICK_MEMBER) {
-        if (packet->payload.server.status_code == 0) {
+        if (packet->payload.server.status_code == RESP_OK) {
             command_status_msg[0] = '\0';
             if (current_screen == SCREEN_COMMAND) {
                 cmd_input[0] = '\0';
@@ -1585,7 +1586,7 @@ void process_network_packet(TizcordPacket *packet) {
                 ui_receive_channel_message(packet);
             } 
             else if (packet->payload.channel.action == CHANNEL_CREATE) {
-                if (packet->payload.channel.status_code == 0) {
+                if (packet->payload.channel.status_code == RESP_OK) {
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
                         cmd_input[0] = '\0';
@@ -1600,7 +1601,7 @@ void process_network_packet(TizcordPacket *packet) {
                 }
             } 
             else if (packet->payload.channel.action == CHANNEL_DELETE) {
-                if (packet->payload.channel.status_code == 0) {
+                if (packet->payload.channel.status_code == RESP_OK) {
                     command_status_msg[0] = '\0';
                     if (current_screen == SCREEN_COMMAND) {
                         cmd_input[0] = '\0';
@@ -2198,12 +2199,16 @@ void start_ui(void)
 
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
             TizcordPacket packet;
+<<<<<<< HEAD
             int bytes_read = packet_receive(client_socket, &packet);
+=======
+            int recv_status = recv_full_packet(client_socket, &packet);
+>>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
             
-            if (bytes_read > 0) {
+            if (recv_status > 0) {
                 process_network_packet(&packet);
                 needs_redraw = 1;
-            } else if (bytes_read == 0) {
+            } else {
                 // Server disconnected gracefully
                 close(client_socket);
                 client_socket = -1;
@@ -2212,12 +2217,7 @@ void start_ui(void)
 
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             while ((ch = getch()) != ERR) {
-                if (ch == 'q' && current_screen == SCREEN_CHAT) {
-                    goto exit_ui_loop; // Break out of nested loops cleanly
-                }
-
                 // Let local inputs decide behavior based on the current screen
-
                 // Route input to the active screen
                 switch (current_screen)
                 {
@@ -2249,7 +2249,4 @@ void start_ui(void)
             }
         }
     }
-
-exit_ui_loop:
-    endwin();
 }

@@ -6,9 +6,9 @@
 #include <sys/socket.h>
 #include <time.h>
 
-#include "protocol.h"  
-#include "client.h"   
-#include "packet_helper.h"
+#include "../shared/protocol.h"
+#include "include/client.h"
+#include "../shared/packet_helper.h"
 
 // Global socket for the client connection
 int client_socket = -1;
@@ -20,7 +20,11 @@ static int safe_send_packet(int socket, TizcordPacket *packet) {
         return -1;
     }
 
+<<<<<<< HEAD
     if (packet_send(socket, packet) != 0) {
+=======
+    if (send_full_packet(socket, packet) != 0) {
+>>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
         perror("[Error] Failed to send packet");
         return -1;
     }
@@ -41,11 +45,15 @@ void connect_to_server(const char *ip_address, int port) {
     // Convert IPv4 addresses from text to binary form
     if (inet_pton(AF_INET, ip_address, &serv_addr.sin_addr) <= 0) {
         printf("\nInvalid address or Address not supported\n");
+        close(client_socket);
+        client_socket = -1;
         return;
     }
 
     if (connect(client_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nConnection Failed\n");
+        perror("connect");
+        close(client_socket);
+        client_socket = -1;
         return;
     }
     
@@ -76,12 +84,14 @@ int send_login(const char *username, const char *password) {
 }
 
 void send_logout(void) {
-    if (client_socket < 0) return;
-
     TizcordPacket packet = create_base_packet(PACKET_AUTH);
     packet.payload.auth.action = AUTH_LOGOUT;
 
+<<<<<<< HEAD
     packet_send(client_socket, &packet);
+=======
+    safe_send_packet(client_socket, &packet);
+>>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 }
 
 void create_server(const char *server_name) {
