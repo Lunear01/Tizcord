@@ -98,8 +98,10 @@ void run_server_loop(ServerContext *ctx) {
             int client_fd = ctx->clients[i].socket_fd;
             if (client_fd > 0 && FD_ISSET(client_fd, &read_set)) {
                 TizcordPacket packet;
-                ssize_t recv_status = packet_receive(client_fd, &packet);
-                if (recv_status <= 0) {
+                int recv_status = packet_receive_partial(
+                    client_fd, ctx->clients[i].receive_buffer,
+                    &ctx->clients[i].receive_offset, &packet);
+                if (recv_status < 0) {
                     // Client disconnected or error
                     int64_t disconnected_user_id = 0;
                     int was_authenticated = ctx->clients[i].is_authenticated;
@@ -126,7 +128,7 @@ void run_server_loop(ServerContext *ctx) {
                         notify_server_member_lists_for_user(ctx, disconnected_user_id);
                         notify_all_user_lists(ctx);
                     }
-                } else {
+                } else if (recv_status > 0) {
                     // Process the received packet
                     process_client_packet(ctx, &ctx->clients[i], &packet);
                 }

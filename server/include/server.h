@@ -11,6 +11,8 @@
 #define BUFFER_SIZE 1024
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <sqlite3.h>
 
 #include "db.h"
@@ -45,6 +47,8 @@ typedef struct {
     TizcordServerMembership membership[MAX_SERVERS]; 
     int joined_server_count;
     int current_server_index;
+    uint8_t receive_buffer[sizeof(TizcordPacket)];
+    size_t receive_offset;
     struct ServerContext* ctx;
 } ClientNode;
 

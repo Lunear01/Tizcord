@@ -113,3 +113,29 @@ ssize_t packet_receive(int fd, TizcordPacket *packet) {
     swap_packet(packet, type);
     return (ssize_t)offset;
 }
+
+int packet_receive_partial(int fd, uint8_t *buffer, size_t *offset,
+                           TizcordPacket *packet) {
+    while (*offset < sizeof(*packet)) {
+        ssize_t count = recv(fd, buffer + *offset, sizeof(*packet) - *offset,
+                             MSG_DONTWAIT);
+        if (count < 0 && errno == EINTR) continue;
+        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;
+        if (count == 0) {
+            errno = (*offset == 0) ? 0 : ECONNRESET;
+            return -1;
+        }
+        if (count < 0) return -1;
+        *offset += (size_t)count;
+    }
+
+    memcpy(packet, buffer, sizeof(*packet));
+    PacketType type = (PacketType)ntohl((uint32_t)packet->type);
+    if (type < PACKET_AUTH || type > PACKET_SOCIAL) {
+        errno = EPROTO;
+        return -1;
+    }
+    swap_packet(packet, type);
+    *offset = 0;
+    return 1;
+}

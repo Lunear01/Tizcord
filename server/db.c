@@ -707,14 +707,14 @@ int db_list_friend_requests(DbContext* db, int64_t user_id, FriendRequestCallbac
 }
 
 int db_list_channel_messages(DbContext* db, int64_t channel_id, MessageCallback msg_cb, void* userdata) {
-    // We use a subquery to get the 50 MOST RECENT messages, but order them chronologically
+    // Return the complete channel history in chronological order.
     const char* sql = 
         "SELECT * FROM ("
         "  SELECT m.id, u.username, m.content, m.created_at "
         "  FROM messages m "
         "  JOIN users u ON m.user_id = u.id "
         "  WHERE m.channel_id = ? "
-        "  ORDER BY m.created_at DESC LIMIT 50"
+        "  ORDER BY m.created_at DESC"
         ") ORDER BY created_at ASC;";
         
     sqlite3_stmt* stmt;
