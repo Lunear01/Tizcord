@@ -98,13 +98,8 @@ void run_server_loop(ServerContext *ctx) {
             int client_fd = ctx->clients[i].socket_fd;
             if (client_fd > 0 && FD_ISSET(client_fd, &read_set)) {
                 TizcordPacket packet;
-<<<<<<< HEAD
-                ssize_t bytes_received = packet_receive(client_fd, &packet);
-                if (bytes_received <= 0) {
-=======
-                int recv_status = recv_full_packet(client_fd, &packet);
+                ssize_t recv_status = packet_receive(client_fd, &packet);
                 if (recv_status <= 0) {
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
                     // Client disconnected or error
                     int64_t disconnected_user_id = 0;
                     int was_authenticated = ctx->clients[i].is_authenticated;
@@ -113,7 +108,7 @@ void run_server_loop(ServerContext *ctx) {
                     }
 
                     if (recv_status < 0) {
-                        perror("recv_full_packet");
+                        perror("packet_receive");
                     }
 
                     printf("Client on fd %d disconnected.\n", client_fd);

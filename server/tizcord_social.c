@@ -36,11 +36,7 @@ static void friend_request_cb(int64_t target_user_id, const char* username, int 
     strncpy(packet.payload.social.target_username, username, MAX_NAME_LEN - 1);
     packet.payload.social.status_code = is_incoming;
 
-<<<<<<< HEAD
     packet_send(ctx->client_fd, &packet);
-=======
-    send_packet_to_client(ctx->client_fd, &packet);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 }
 
 static void user_list_cb(int64_t user_id, const char* username, const char* status_text, void* userdata) {
@@ -71,11 +67,7 @@ static void user_list_cb(int64_t user_id, const char* username, const char* stat
     packet.payload.social.target_status[PROFILE_STATUS_LEN] = '\0';
     packet.payload.social.status_code = is_online;
 
-<<<<<<< HEAD
     packet_send(ctx->client_fd, &packet);
-=======
-    send_packet_to_client(ctx->client_fd, &packet);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 }
 
 static int client_is_online(ServerContext *ctx, int64_t user_id) {
@@ -111,11 +103,7 @@ static void send_status_update_packet(int client_fd, int status_code, int64_t us
         packet.payload.social.target_status[PROFILE_STATUS_LEN] = '\0';
     }
 
-<<<<<<< HEAD
     packet_send(client_fd, &packet);
-=======
-    send_packet_to_client(client_fd, &packet);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 }
 
 static void notify_user_status_update(ServerContext *ctx, int64_t user_id,
@@ -146,11 +134,7 @@ static void notify_friend_list_update(ServerContext *ctx, int64_t target_user_id
             start_pkt.payload.social.action = SOCIAL_LIST_FRIENDS;
             start_pkt.list_id = cb_ctx.list_id;
             start_pkt.list_frame = LIST_FRAME_START;
-<<<<<<< HEAD
             packet_send(fd, &start_pkt);
-=======
-            send_packet_to_client(fd, &start_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 
             db_list_friend_requests(ctx->db, target_user_id, friend_request_cb, &cb_ctx);
 
@@ -159,11 +143,7 @@ static void notify_friend_list_update(ServerContext *ctx, int64_t target_user_id
             end_pkt.list_id = cb_ctx.list_id;
             end_pkt.list_total = cb_ctx.current_index;
             end_pkt.list_frame = LIST_FRAME_END;
-<<<<<<< HEAD
             packet_send(fd, &end_pkt);
-=======
-            send_packet_to_client(fd, &end_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
             break;
         }
     }
@@ -191,11 +171,7 @@ void notify_all_user_lists(ServerContext *ctx) {
         start_pkt.payload.social.action = SOCIAL_LIST_USERS;
         start_pkt.list_id = ulc.list_id;
         start_pkt.list_frame = LIST_FRAME_START;
-<<<<<<< HEAD
         packet_send(client->socket_fd, &start_pkt);
-=======
-        send_packet_to_client(client->socket_fd, &start_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 
         db_list_all_users(ctx->db, user_list_cb, &ulc);
 
@@ -204,11 +180,7 @@ void notify_all_user_lists(ServerContext *ctx) {
         end_pkt.list_id = ulc.list_id;
         end_pkt.list_total = ulc.current_index;
         end_pkt.list_frame = LIST_FRAME_END;
-<<<<<<< HEAD
         packet_send(client->socket_fd, &end_pkt);
-=======
-        send_packet_to_client(client->socket_fd, &end_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
     }
 }
 
@@ -284,11 +256,7 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             start_pkt.payload.social.action = SOCIAL_LIST_FRIENDS;
             start_pkt.list_id = cb_ctx.list_id;
             start_pkt.list_frame = LIST_FRAME_START;
-<<<<<<< HEAD
             packet_send(client->socket_fd, &start_pkt);
-=======
-            send_packet_to_client(client->socket_fd, &start_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 
             db_list_friend_requests(ctx->db, client->id, friend_request_cb, &cb_ctx);
 
@@ -297,11 +265,7 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             end_pkt.list_id = cb_ctx.list_id;
             end_pkt.list_total = cb_ctx.current_index;
             end_pkt.list_frame = LIST_FRAME_END;
-<<<<<<< HEAD
             packet_send(client->socket_fd, &end_pkt);
-=======
-            send_packet_to_client(client->socket_fd, &end_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
             break;
         }
         case SOCIAL_FRIEND_REMOVE: {
@@ -350,11 +314,7 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             start_pkt.payload.social.action = SOCIAL_LIST_USERS;
             start_pkt.list_id = ulc.list_id;
             start_pkt.list_frame = LIST_FRAME_START;
-<<<<<<< HEAD
             packet_send(client->socket_fd, &start_pkt);
-=======
-            send_packet_to_client(client->socket_fd, &start_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 
             db_list_all_users(ctx->db, user_list_cb, &ulc);
 
@@ -363,11 +323,7 @@ void handle_social_packet(ServerContext *ctx, ClientNode *client, TizcordPacket 
             end_pkt.list_id = ulc.list_id;
             end_pkt.list_total = ulc.current_index;
             end_pkt.list_frame = LIST_FRAME_END;
-<<<<<<< HEAD
             packet_send(client->socket_fd, &end_pkt);
-=======
-            send_packet_to_client(client->socket_fd, &end_pkt);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
             break;
         }
         case SOCIAL_UPDATE_STATUS: {

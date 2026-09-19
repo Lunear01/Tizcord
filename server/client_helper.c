@@ -23,19 +23,11 @@ int send_packet_to_client(int client_fd, const TizcordPacket *packet) {
 		return -1;
 	}
 
-<<<<<<< HEAD
 	if (packet_send(client_fd, packet) != 0) {
         fprintf(stderr, "[Client Helper] Failed to send packet: %s\n", strerror(errno));
         return -1;
     }
     return 0;
-=======
-	if (send_full_packet(client_fd, packet) != 0) {
-		fprintf(stderr, "[Client Helper] Failed to send packet: %s\n", strerror(errno));
-		return -1;
-	}
-	return 0;
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
 }	
 
 int send_action_response(int client_fd, PacketType type, int action, int status_code,

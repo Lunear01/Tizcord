@@ -2199,11 +2199,7 @@ void start_ui(void)
 
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
             TizcordPacket packet;
-<<<<<<< HEAD
             int bytes_read = packet_receive(client_socket, &packet);
-=======
-            int recv_status = recv_full_packet(client_socket, &packet);
->>>>>>> 2069d63712814baa0e39429d04fa64de6d8e609a
             
             if (recv_status > 0) {
                 process_network_packet(&packet);
