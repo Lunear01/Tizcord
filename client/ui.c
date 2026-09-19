@@ -1,3 +1,4 @@
+#include "../shared/packet_helper.h"
 #include <ncurses.h>
 #include <stdio.h>
 #include <string.h>
@@ -2197,7 +2198,7 @@ void start_ui(void)
 
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
             TizcordPacket packet;
-            int bytes_read = read(client_socket, &packet, sizeof(TizcordPacket));
+            int bytes_read = packet_receive(client_socket, &packet);
             
             if (bytes_read > 0) {
                 process_network_packet(&packet);

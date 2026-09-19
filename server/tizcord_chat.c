@@ -45,7 +45,7 @@ static void message_history_cb(int64_t msg_id, const char* username, const char*
     strncpy(packet.payload.channel.channel_name, username, MAX_NAME_LEN - 1);
     strncpy(packet.payload.channel.message, content, MESSAGE_LEN - 1);
     
-    write(ctx->client_fd, &packet, sizeof(TizcordPacket));
+    packet_send(ctx->client_fd, &packet);
 }
 
 static void direct_message_history_cb(int64_t msg_id, const char* sender_username, const char* receiver_username, const char* content, int64_t timestamp, void* userdata) {
@@ -73,16 +73,17 @@ static void direct_message_history_cb(int64_t msg_id, const char* sender_usernam
     
     strncpy(packet.payload.dm.message, content, MESSAGE_LEN - 1);
     
-    write(ctx->client_fd, &packet, sizeof(TizcordPacket));
+    packet_send(ctx->client_fd, &packet);
 }
 
 void channel_broadcast(ServerContext *ctx, sqlite3_int64 channel_id, const char *packet, size_t packet_size, int sender_fd) {
     (void)channel_id; // Will be used later to filter by specific channels
+    (void)packet_size;
     
     for (int i = 0; i < ctx->client_count; i++) {
         // Only send to active sockets, and don't echo back to the sender
         if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].socket_fd != sender_fd) {
-            write(ctx->clients[i].socket_fd, packet, packet_size);
+            packet_send(ctx->clients[i].socket_fd, (const TizcordPacket *)packet);
         }
     }
 }
@@ -157,7 +158,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         } else {
             reply.payload.channel.status_code = 401; // Unauthorized
         }
-        write(sender_fd, &reply, sizeof(TizcordPacket));
+        packet_send(sender_fd, &reply);
 
     }
 
@@ -189,7 +190,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
                 reply.payload.channel.status_code = RESP_ERR_NOT_FOUND;
             }
         }
-        write(sender_fd, &reply, sizeof(TizcordPacket));
+        packet_send(sender_fd, &reply);
     }
     else if (packet->payload.channel.action == CHANNEL_HISTORY_REQUEST) {
         printf("[Chat] History request for Channel ID: %lld\n", (long long)packet->payload.channel.channel_id);
@@ -206,7 +207,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         start_pkt.payload.channel.action = CHANNEL_MESSAGE;
         start_pkt.list_id = cb_ctx.list_id;
         start_pkt.list_frame = LIST_FRAME_START;
-        write(sender_fd, &start_pkt, sizeof(TizcordPacket));
+        packet_send(sender_fd, &start_pkt);
 
         // Stream the history
         if (ctx->db != NULL) {
@@ -218,7 +219,7 @@ void handle_channel_message(ServerContext *ctx, TizcordPacket *packet, int sende
         end_pkt.payload.channel.action = CHANNEL_MESSAGE;
         end_pkt.list_id = cb_ctx.list_id;
         end_pkt.list_frame = LIST_FRAME_END;
-        write(sender_fd, &end_pkt, sizeof(TizcordPacket));
+        packet_send(sender_fd, &end_pkt);
     }
 }
 
@@ -251,7 +252,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             if (ctx->clients[i].socket_fd > 0 && ctx->clients[i].id == packet->payload.dm.recipient_id) {
                 
                 // Forward the exact packet to the receiver's socket
-                write(ctx->clients[i].socket_fd, packet, sizeof(TizcordPacket));
+                packet_send(ctx->clients[i].socket_fd, packet);
                 printf("[Chat] PACKET_DM delivered to ID %lld\n", (long long)packet->payload.dm.recipient_id);
                 found = 1;
                 break;
@@ -280,7 +281,7 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             start_pkt.payload.dm.recipient_id = cb_ctx.friend_id;
             start_pkt.list_id = cb_ctx.list_id;
             start_pkt.list_frame = LIST_FRAME_START;
-            write(sender_fd, &start_pkt, sizeof(TizcordPacket));
+            packet_send(sender_fd, &start_pkt);
 
             // Call the database function
             db_list_direct_messages(ctx->db, sender_node->id, packet->payload.dm.recipient_id, direct_message_history_cb, &cb_ctx);
@@ -290,6 +291,6 @@ void handle_private_message(ServerContext *ctx, TizcordPacket *packet, int sende
             end_pkt.payload.dm.recipient_id = cb_ctx.friend_id;
             end_pkt.list_id = cb_ctx.list_id;
             end_pkt.list_frame = LIST_FRAME_END;
-            write(sender_fd, &end_pkt, sizeof(TizcordPacket));
+            packet_send(sender_fd, &end_pkt);
     }
 }

@@ -34,6 +34,12 @@
     - Client-Side Event Loop: The client application integrates standard input (STDIN_FILENO) and the network socket into a single select() loop. This ensures synchronous UI updates and non-blocking interactions.
     - Custom Wire Protocol: Network communication is standardized by a fixed-size C structure designated as TizcordPacket. Large data payloads, such as historical message retrieval, are securely chunked and streamed using sequence frames (LIST_FRAME_START, LIST_FRAME_MIDDLE, LIST_FRAME_END) to maintain memory safety and prevent buffer overflows.
 
+### Packet writes and byte order
+
+All packet sends go through `packet_send`, which copies the packet, converts its 32-bit integer and enum fields with `htonl`, converts its 64-bit integer fields to big-endian order, and writes the full packet even when a socket send is short. `packet_receive` reads a full packet and converts those fields back to host byte order before dispatch. `htons` is used separately for the TCP port, which is a 16-bit socket address field. Character arrays are copied unchanged.
+
+The wire packet still uses the C `TizcordPacket` structure layout, including compiler padding and union layout. Both peers must use a compatible ABI and the same protocol version. A fully portable wire format would serialize fields into explicit byte offsets instead of transmitting the structure layout.
+
 ### Dependencies
 - To compile and execute Tizcord, the following dependencies are required:
     - gcc (GNU Compiler Collection)

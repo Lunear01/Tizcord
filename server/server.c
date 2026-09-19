@@ -1,3 +1,4 @@
+#include "../shared/packet_helper.h"
 #include "../shared/protocol.h"
 #include "include/server.h"
 #include "include/auth.h"
@@ -95,7 +96,7 @@ void run_server_loop(ServerContext *ctx) {
             int client_fd = ctx->clients[i].socket_fd;
             if (client_fd > 0 && FD_ISSET(client_fd, &read_set)) {
                 TizcordPacket packet;
-                ssize_t bytes_received = read(client_fd, &packet, sizeof(TizcordPacket));
+                ssize_t bytes_received = packet_receive(client_fd, &packet);
                 if (bytes_received <= 0) {
                     // Client disconnected or error
                     int64_t disconnected_user_id = 0;

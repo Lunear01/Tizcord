@@ -20,18 +20,10 @@ static int safe_send_packet(int socket, TizcordPacket *packet) {
         return -1;
     }
 
-    // Using send with MSG_NOSIGNAL prevents the app from crashing if the server disconnects
-    ssize_t bytes_sent = send(socket, packet, sizeof(TizcordPacket), MSG_NOSIGNAL);
-
-    if (bytes_sent < 0) {
+    if (packet_send(socket, packet) != 0) {
         perror("[Error] Failed to send packet");
         return -1;
-    } else if (bytes_sent < (ssize_t)sizeof(TizcordPacket)) {
-        fprintf(stderr, "[Error] Partial write occurred (%zd/%zu bytes sent).\n", 
-                bytes_sent, sizeof(TizcordPacket));
-        return -1;
     }
-
     return 0;
 }
 
@@ -89,7 +81,7 @@ void send_logout(void) {
     TizcordPacket packet = create_base_packet(PACKET_AUTH);
     packet.payload.auth.action = AUTH_LOGOUT;
 
-    write(client_socket, &packet, sizeof(TizcordPacket));
+    packet_send(client_socket, &packet);
 }
 
 void create_server(const char *server_name) {
