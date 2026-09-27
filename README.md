@@ -20,6 +20,8 @@
     - [x] Save direct messages to the database
 - [x] Message timestamps 
 - [x] Terminal User Interface (TUI) integration
+- [ ] TLS 1.3 between client and server (OpenSSL, pinned self-signed certificate)
+- [ ] End-to-End encryption
 
 ### Features
 - Real-Time Messaging: Facilitates low-latency communication across community channels and direct messages.
@@ -72,6 +74,14 @@ Run on an otherwise idle Linux host and record the CPU model, kernel, compiler f
     # Initialize the SQLite database and run the necessary SQL migrations
     make db
     ```
+### TLS
+
+Client and server speak TLS 1.3 over the TCP socket. The server needs a certificate and private key; the client is given the server's certificate and trusts only that one. 
+
+### End-to-End Encryption
+
+Client shares public keys with directly without going through the server, thus the server does not get the plaintext at all. Implementated using key-agreement using X25519 that combines sender's public key with the receiver's private key, vice versa. This key will then serve as the key for symmetric key encryption using AES-GCM.
+
 ### Usage
 - Initializing the Server
 - Execute the server binary from the project directory. The server accepts optional arguments for the port number and database file:
