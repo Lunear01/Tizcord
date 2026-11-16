@@ -65,6 +65,9 @@ Thumbs.db
 # Python benchmark cache
 __pycache__/
 
+# TLS material
+certs/
+
 # Build output
 client/client
 server/server

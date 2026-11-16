@@ -49,6 +49,7 @@ The wire packet still uses the C `TizcordPacket` structure layout, including com
     - libncurses-dev (Terminal UI library)
     - libsqlite3-dev (Database library)
     - libcrypt-dev (Cryptographic hashing library)
+    - libssl-dev (OpenSSL, for TLS)
 
 ### Performance benchmark
 
@@ -84,16 +85,16 @@ Client shares public keys with directly without going through the server, thus t
 
 ### Usage
 - Initializing the Server
-- Execute the server binary from the project directory. The server accepts optional arguments for the port number and database file:
+- Execute the server binary from the project directory with the port, database file, and certificate pair:
     ```bash
-    ./server 4242 tizcord.db
+    ./server 4242 tizcord.db ../certs/server.crt ../certs/server.key
     ```
-**Note: If arguments are omitted, the server defaults to port 4242.**
+**Note: All four arguments are required. Pass `--insecure` instead of the certificate pair to run without TLS.**
 
 ### Connecting a Client
 - Launch the client application in a separate terminal instance, specifying the server's IPv4 address and target port:
     ```bash
-    ./client 127.0.0.1 4242
+    ./client 127.0.0.1 4242 ../certs/server.crt
     ```
 ### Command Line Interface (CLI) Reference
 - Within the Tizcord UI, pressing the `F1` key activates the command-line prompt. The following commands are supported:
