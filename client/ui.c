@@ -11,6 +11,7 @@
 #include "include/ui.h"
 #include "include/client.h"
 #include "../shared/packet_helper.h"
+#include "../shared/tls.h"
 
 extern int client_socket;
 
@@ -2198,17 +2199,22 @@ void start_ui(void)
         int needs_redraw = 0;
 
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
-            TizcordPacket packet;
-            ssize_t recv_status = packet_receive(client_socket, &packet);
-            
-            if (recv_status > 0) {
-                process_network_packet(&packet);
-                needs_redraw = 1;
-            } else {
-                // Server disconnected gracefully
-                close(client_socket);
-                client_socket = -1;
-            }
+            // Drain packets OpenSSL has already decrypted; select() cannot
+            // see them.
+            do {
+                TizcordPacket packet;
+                ssize_t recv_status = packet_receive(client_socket, &packet);
+
+                if (recv_status > 0) {
+                    process_network_packet(&packet);
+                    needs_redraw = 1;
+                } else {
+                    // Server disconnected
+                    tls_close(client_socket);
+                    close(client_socket);
+                    client_socket = -1;
+                }
+            } while (client_socket != -1 && tls_pending(client_socket) > 0);
         }
 
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {

@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "../shared/protocol.h"
+#include "../shared/tls.h"
 #include "include/client.h"
 #include "../shared/packet_helper.h"
 
@@ -52,8 +53,16 @@ void connect_to_server(const char *ip_address, int port) {
         client_socket = -1;
         return;
     }
+
+    if (tls_enabled() && tls_connect(client_socket, ip_address) != 0) {
+        fprintf(stderr, "[Client] TLS handshake with %s failed.\n", ip_address);
+        close(client_socket);
+        client_socket = -1;
+        return;
+    }
     
-    printf("[Client] Successfully connected to %s:%d!\n", ip_address, port);
+    printf("[Client] Successfully connected to %s:%d%s\n", ip_address, port,
+           tls_enabled() ? " over TLS" : " (plaintext)");
 }
 
 int send_register(const char *username, const char *password) {
