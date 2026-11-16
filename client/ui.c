@@ -2199,7 +2199,7 @@ void start_ui(void)
 
         if (client_socket != -1 && FD_ISSET(client_socket, &read_fds)) {
             TizcordPacket packet;
-            int bytes_read = packet_receive(client_socket, &packet);
+            ssize_t recv_status = packet_receive(client_socket, &packet);
             
             if (recv_status > 0) {
                 process_network_packet(&packet);
