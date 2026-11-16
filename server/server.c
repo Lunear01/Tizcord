@@ -1,5 +1,6 @@
 #include "../shared/packet_helper.h"
 #include "../shared/protocol.h"
+#include "../shared/tls.h"
 #include "include/server.h"
 #include "include/auth.h"
 #include "include/tizcord_server.h"
@@ -15,6 +16,7 @@
 #include <errno.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <time.h>
 #include "../shared/packet_helper.h"
 
 // Reset everything in the server
@@ -68,6 +70,83 @@ int start_server(int port) {
 }
 
 
+// Close client i, drop it from the table, and tell others if it was logged in.
+static void disconnect_client(ServerContext *ctx, int i, fd_set *master_set) {
+    int client_fd = ctx->clients[i].socket_fd;
+    int64_t disconnected_user_id =
+        ctx->clients[i].is_authenticated ? ctx->clients[i].id : 0;
+
+    printf("Client on fd %d disconnected.\n", client_fd);
+    tls_close(client_fd);
+    close(client_fd);
+    FD_CLR(client_fd, master_set);
+
+    for (int j = i; j < ctx->client_count - 1; j++) {
+        ctx->clients[j] = ctx->clients[j + 1];
+    }
+    ctx->client_count--;
+
+    if (disconnected_user_id > 0) {
+        notify_server_member_lists_for_user(ctx, disconnected_user_id);
+        notify_all_user_lists(ctx);
+    }
+}
+
+// Read and process every packet available on client i. Returns -1 if the
+// client was disconnected (and removed), 0 otherwise.
+static int read_client(ServerContext *ctx, int i, fd_set *master_set) {
+    ClientNode *client = &ctx->clients[i];
+    int client_fd = client->socket_fd;
+
+    if (client->tls_handshaking) {
+        int r = tls_accept_step(client_fd);
+        if (r < 0) {
+            printf("TLS handshake failed on fd %d. Dropping.\n", client_fd);
+            disconnect_client(ctx, i, master_set);
+            return -1;
+        }
+        if (r == 0) return 0;
+        client->tls_handshaking = false;
+    }
+
+    // OpenSSL may buffer a whole record; select() will not report
+    // it, so keep reading while decrypted bytes are pending.
+    for (;;) {
+        TizcordPacket packet;
+        int recv_status = packet_receive_partial(
+            client_fd, client->receive_buffer, &client->receive_offset, &packet);
+        if (recv_status < 0) {
+            perror("packet_receive");
+            disconnect_client(ctx, i, master_set);
+            return -1;
+        }
+        if (recv_status == 0) return 0;
+        process_client_packet(ctx, client, &packet);
+        if (tls_pending(client_fd) <= 0) return 0;
+    }
+}
+
+// Drop clients that have not finished the TLS handshake in time.
+static void expire_handshakes(ServerContext *ctx, fd_set *master_set) {
+    time_t now = time(NULL);
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].tls_handshaking &&
+            now >= ctx->clients[i].handshake_deadline) {
+            printf("TLS handshake timed out on fd %d.\n",
+                   ctx->clients[i].socket_fd);
+            disconnect_client(ctx, i, master_set);
+            i--;
+        }
+    }
+}
+
+static bool any_handshaking(const ServerContext *ctx) {
+    for (int i = 0; i < ctx->client_count; i++) {
+        if (ctx->clients[i].tls_handshaking) return true;
+    }
+    return false;
+}
+
 void run_server_loop(ServerContext *ctx) {
     fd_set master_set, read_set;
     FD_ZERO(&master_set);
@@ -76,8 +155,13 @@ void run_server_loop(ServerContext *ctx) {
 
     while (1) {
         read_set = master_set;
-        
-        if (select(max_fd + 1, &read_set, NULL, NULL, NULL) == -1) {
+
+        // Wake once a second while handshakes are pending so stalled ones expire.
+        struct timeval tick = {1, 0};
+        int ready = select(max_fd + 1, &read_set, NULL, NULL,
+                           any_handshaking(ctx) ? &tick : NULL);
+        if (ready == -1) {
+            if (errno == EINTR) continue;
             perror("select");
             exit(EXIT_FAILURE);
         }
@@ -96,44 +180,11 @@ void run_server_loop(ServerContext *ctx) {
         // loop through each client
         for (int i = 0; i < ctx->client_count; i++) {
             int client_fd = ctx->clients[i].socket_fd;
-            if (client_fd > 0 && FD_ISSET(client_fd, &read_set)) {
-                TizcordPacket packet;
-                int recv_status = packet_receive_partial(
-                    client_fd, ctx->clients[i].receive_buffer,
-                    &ctx->clients[i].receive_offset, &packet);
-                if (recv_status < 0) {
-                    // Client disconnected or error
-                    int64_t disconnected_user_id = 0;
-                    int was_authenticated = ctx->clients[i].is_authenticated;
-                    if (was_authenticated) {
-                        disconnected_user_id = ctx->clients[i].id;
-                    }
-
-                    if (recv_status < 0) {
-                        perror("packet_receive");
-                    }
-
-                    printf("Client on fd %d disconnected.\n", client_fd);
-                    close(client_fd);
-                    FD_CLR(client_fd, &master_set);
-                    
-                    // remove client
-                    for (int j = i; j < ctx->client_count - 1; j++) {
-                        ctx->clients[j] = ctx->clients[j + 1];
-                    }
-                    ctx->client_count--;
-                    i--; 
-
-                    if (was_authenticated && disconnected_user_id > 0) {
-                        notify_server_member_lists_for_user(ctx, disconnected_user_id);
-                        notify_all_user_lists(ctx);
-                    }
-                } else if (recv_status > 0) {
-                    // Process the received packet
-                    process_client_packet(ctx, &ctx->clients[i], &packet);
-                }
-            }
+            if (client_fd <= 0 || !FD_ISSET(client_fd, &read_set)) continue;
+            if (read_client(ctx, i, &master_set) < 0) i--;
         }
+
+        expire_handshakes(ctx, &master_set);
     }
 }
 
@@ -173,11 +224,19 @@ int handle_new_connection(ServerContext *ctx) {
 		return -1;
 	}
 
+	if (tls_enabled() && tls_accept_start(client_fd) != 0) {
+		printf("TLS setup failed on fd %d. Dropping.\n", client_fd);
+		close(client_fd);
+		return -1;
+	}
+
 	ClientNode *client = &ctx->clients[ctx->client_count];
     memset(client, 0, sizeof(ClientNode));
     client->socket_fd = client_fd;
     client->current_server_index = -1;
     client->ctx = ctx;
+    client->tls_handshaking = tls_enabled();
+    client->handshake_deadline = time(NULL) + HANDSHAKE_TIMEOUT_SEC;
     ctx->clients[ctx->client_count++] = *client;
     return client_fd;
 }

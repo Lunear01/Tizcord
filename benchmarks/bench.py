@@ -109,7 +109,7 @@ async def connect(port, name, action=1):
     return client
 
 async def start_server(binary, port, db, log):
-    proc = subprocess.Popen([str(binary), str(port), str(db)], stdout=log, stderr=log)
+    proc = subprocess.Popen([str(binary), str(port), str(db), '--insecure'], stdout=log, stderr=log)
     for _ in range(100):
         if proc.poll() is not None: raise RuntimeError(f'server exited: {proc.returncode}')
         try:

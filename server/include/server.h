@@ -9,10 +9,12 @@
 #define MAX_SERVER_MEMBERS 64
 #define MAX_NAME_LEN 32
 #define BUFFER_SIZE 1024
+#define HANDSHAKE_TIMEOUT_SEC 5
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 #include <sqlite3.h>
 
 #include "db.h"
@@ -49,6 +51,8 @@ typedef struct {
     int current_server_index;
     uint8_t receive_buffer[sizeof(TizcordPacket)];
     size_t receive_offset;
+    bool tls_handshaking;
+    time_t handshake_deadline;
     struct ServerContext* ctx;
 } ClientNode;
 
