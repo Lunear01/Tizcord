@@ -1,15 +1,15 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude -I../shared
-LDFLAGS = -lncurses
+LDFLAGS = -lncurses -lssl -lcrypto
 
-SHARED_OBJ = ../shared/packet_helper.o
+SHARED_OBJ = ../shared/packet_helper.o ../shared/tls.o
 
 all: client
 
 client: client_main.o client.o ui.o $(SHARED_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-../shared/packet_helper.o: ../shared/packet_helper.c
+../shared/%.o: ../shared/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.c

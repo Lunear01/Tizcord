@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "packet_helper.h"
 #include "protocol.h"
+#include "tls.h"
 
 // Helper function to initialize a base packet
 TizcordPacket create_base_packet(PacketType type) {
@@ -86,7 +87,7 @@ int packet_send(int fd, const TizcordPacket *packet) {
     const uint8_t *bytes = (const uint8_t *)&wire;
     size_t offset = 0;
     while (offset < sizeof(wire)) {
-        ssize_t count = send(fd, bytes + offset, sizeof(wire) - offset, MSG_NOSIGNAL);
+        ssize_t count = tls_send(fd, bytes + offset, sizeof(wire) - offset);
         if (count < 0 && errno == EINTR) continue;
         if (count <= 0) return -1;
         offset += (size_t)count;
@@ -98,7 +99,7 @@ ssize_t packet_receive(int fd, TizcordPacket *packet) {
     uint8_t *bytes = (uint8_t *)packet;
     size_t offset = 0;
     while (offset < sizeof(*packet)) {
-        ssize_t count = recv(fd, bytes + offset, sizeof(*packet) - offset, 0);
+        ssize_t count = tls_recv(fd, bytes + offset, sizeof(*packet) - offset, false);
         if (count < 0 && errno == EINTR) continue;
         if (count == 0 && offset == 0) return 0;
         if (count == 0) errno = ECONNRESET;
@@ -117,8 +118,8 @@ ssize_t packet_receive(int fd, TizcordPacket *packet) {
 int packet_receive_partial(int fd, uint8_t *buffer, size_t *offset,
                            TizcordPacket *packet) {
     while (*offset < sizeof(*packet)) {
-        ssize_t count = recv(fd, buffer + *offset, sizeof(*packet) - *offset,
-                             MSG_DONTWAIT);
+        ssize_t count = tls_recv(fd, buffer + *offset, sizeof(*packet) - *offset,
+                                 true);
         if (count < 0 && errno == EINTR) continue;
         if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;
         if (count == 0) {

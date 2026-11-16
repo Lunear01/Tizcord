@@ -14,8 +14,13 @@ int tls_init_client(const char *ca_file);
 bool tls_enabled(void);
 void tls_cleanup(void);
 
-/* Handshake on a connected fd. Server fds are left O_NONBLOCK afterwards. */
-int tls_accept(int fd);
+/* Server handshake, driven from a select loop so a silent peer blocks no one.
+ * start sets fd O_NONBLOCK; step returns 1 done, 0 awaiting peer, -1 failed.
+ * On -1 the caller still tls_close()s. */
+int tls_accept_start(int fd);
+int tls_accept_step(int fd);
+
+/* Blocking client handshake; verifies the certificate's IP SAN. */
 int tls_connect(int fd, const char *ip);
 
 /* Shutdown and free the SSL for fd. Caller still close()s the fd. */
