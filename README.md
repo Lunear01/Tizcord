@@ -20,7 +20,7 @@
     - [x] Save direct messages to the database
 - [x] Message timestamps 
 - [x] Terminal User Interface (TUI) integration
-- [ ] TLS 1.3 between client and server (OpenSSL, pinned self-signed certificate)
+- [x] TLS 1.3 between client and server (OpenSSL, pinned self-signed certificate)
 - [ ] End-to-End encryption
 
 ### Features
@@ -28,7 +28,7 @@
 - Non-blocking User Interface: Utilizes the ncurses library alongside select() system calls to ensure the terminal remains fully responsive during network I/O operations.
 - Server and Role Management: Supports server creation, channel administration, and role-based access control for actions such as member moderation.
 - Social Systems: Includes a comprehensive friend request system and real-time user status broadcasting.
-- Persistent Storage: Implements a SQLite backend for the secure storage of user credentials, chat histories, and server states, utilizing yescrypt for cryptographic password hashing.
+- Persistent Storage: SQLite stores user credentials, chat histories, and server states. Passwords are hashed with yescrypt. Messages are stored as plaintext.
 
 ### Architecture Overview
 - Tizcord operates on a concurrent model designed for maximum efficiency:
@@ -77,11 +77,27 @@ Run on an otherwise idle Linux host and record the CPU model, kernel, compiler f
     ```
 ### TLS
 
-Client and server speak TLS 1.3 over the TCP socket. The server needs a certificate and private key; the client is given the server's certificate and trusts only that one. 
+Client and server speak TLS 1.3 over the TCP socket. TLS encrypts traffic on the network. The server still decrypts and can read every message.
 
-### End-to-End Encryption
+**Pinned certificate** — the client trusts only the server certificate it is given, not system CAs. It also checks the certificate's IP address matches the address it dialed.
 
-Client shares public keys with directly without going through the server, thus the server does not get the plaintext at all. Implementated using key-agreement using X25519 that combines sender's public key with the receiver's private key, vice versa. This key will then serve as the key for symmetric key encryption using AES-GCM.
+Generate a self-signed certificate and key into `certs/` (gitignored):
+
+```bash
+make cert IP=192.168.1.20   # LAN address clients dial; 127.0.0.1 is always included
+```
+
+- Copy `certs/server.crt` to every client. Regenerating it means recopying it.
+- Keep `certs/server.key` on the server only. Anyone holding it can impersonate the server.
+- A client dialing an IP not listed in the certificate fails the handshake.
+
+The server drops a client that does not finish the TLS handshake within 5 seconds. A stalled handshake does not block other clients.
+
+**`--insecure`** — runs without TLS; all traffic is plaintext. Meant for local benchmarks only.
+
+### End-to-End Encryption (planned, not implemented)
+
+Planned design: clients exchange public keys and derive a shared key with X25519 key agreement. Messages are encrypted with AES-GCM using that key, so the server never sees plaintext. None of this exists in the code yet.
 
 ### Usage
 - Initializing the Server
@@ -89,10 +105,10 @@ Client shares public keys with directly without going through the server, thus t
     ```bash
     ./server 4242 tizcord.db ../certs/server.crt ../certs/server.key
     ```
-**Note: All four arguments are required. Pass `--insecure` instead of the certificate pair to run without TLS.**
+**Note: Port, database, and either the certificate pair or `--insecure` are required.**
 
 ### Connecting a Client
-- Launch the client application in a separate terminal instance, specifying the server's IPv4 address and target port:
+- Launch the client application in a separate terminal instance, specifying the server's IPv4 address, port, and the server's certificate (or `--insecure` for a server running without TLS):
     ```bash
     ./client 127.0.0.1 4242 ../certs/server.crt
     ```
